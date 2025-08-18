@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Anatomie‑Quiz: Erkenne das Organ</title>
+<style>
+  :root{
+    --w: min(92vmin, 680px);
+    --pad: 14px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background:#0f1220;
+    color:#111;
+    min-height:100svh;
+    display:flex; align-items:center; justify-content:center;
+    padding:18px;
+  }
+  .card{
+    width:100%;
+    max-width:760px;
+    background:linear-gradient(180deg,#ffffff 0,#f6f7fb 100%);
+    border:1px solid #e6e6f5;
+    border-radius:18px;
+    box-shadow: 0 30px 80px rgba(10,20,60,.25);
+    padding: clamp(14px, 3.6vmin, 24px);
+  }
+  header h1{
+    margin:0 0 6px 0;
+    font-size: clamp(18px, 4.5vw, 28px);
+    letter-spacing:.2px;
+  }
+  header p{ margin:0; color:#555; font-size: clamp(12px, 2.7vw, 14px) }
+  .stage{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(12px, 3.6vmin, 20px);
+    margin-top: 14px;
+  }
+  @media (max-width: 840px){
+    .stage{ grid-template-columns: 1fr; }
+  }
+  .canvasBox{
+    background:#fff;
+    border:1px solid #ececf6;
+    border-radius:16px;
+    padding: var(--pad);
+    position:relative;
+  }
+  canvas#art{
+    width:100%; aspect-ratio:1/1; display:block;
+    border-radius:12px;
+    background: radial-gradient(120% 120% at 0 0, #fff, #f2f3fa 70%);
+    border:1px solid #e9e9f7;
+    box-shadow: inset 0 6px 24px rgba(50,50,100,.06);
+  }
+  .progress{
+    position:absolute; top:10px; left:10px;
+    background: #00000099; color:#fff; padding:4px 8px; border-radius:999px; font-size:12px;
+  }
+  .ui{
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .chips{
+    display:flex; flex-wrap:wrap; gap:8px;
+  }
+  .chip{
+    padding:6px 10px; border-radius:999px; background:#f3f2fb;
+    border:1px solid #e6e5f5; color:#333; font-weight:600; font-size:14px;
+    user-select:none;
+  }
+  .inputRow{
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  }
+  input[type="text"]{
+    flex:1 1 220px;
+    padding:10px 12px; border-radius:10px; border:1px solid #dad9ea;
+    font-size:16px; outline:none; background:#fff;
+  }
+  button{
+    appearance:none; border:1px solid #1a8fff; background:#1a8fff; color:#fff;
+    padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer;
+  }
+  button.secondary{ background:#fff; color:#1a1a33; border-color:#d9d8e9 }
+  button:active{ transform: translateY(1px) }
+  .msg{ font-size:14px; min-height:20px }
+  .msg.ok{ color:#0c7a3e }
+  .msg.err{ color:#b0003a }
+  .bar{
+    height:8px; background:#ececf6; border-radius:999px; overflow:hidden;
+  }
+  .bar > i{ display:block; height:100%; width:0%; background:#1a8fff; }
+  .footer{ margin-top:8px; color:#666; font-size:12px; text-align:center }
+  .hidden{ display:none !important }
+  .center{ text-align:center }
+  .codeBox{
+    border:1px dashed #d9d8e9; border-radius:12px; background:#fff; padding:12px;
+    display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
+  }
+  .code{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:18px; font-weight:800; padding:6px 10px; border-radius:8px;
+    background:#121a3a; color:#fff; letter-spacing:1.5px;
+  }
+</style>
+</head>
+<body>
+  <div class="card" role="application" aria-label="Anatomie-Quiz">
+    <header>
+      <h1>Anatomie‑Quiz: Erkenne das Organ</h1>
+      <p>Schau dir das Bild an. Unten stehen drei mögliche Organe. <strong>Tippe</strong> die richtige Bezeichnung ein und bestätige mit „Antwort prüfen“. 5 Level.</p>
+    </header>
+
+    <div class="stage">
+      <div class="canvasBox">
+        <span class="progress" id="progress">Level 1 / 5</span>
+        <canvas id="art" width="1600" height="1600" aria-label="Organzeichnung"></canvas>
+      </div>
+
+      <div class="ui">
+        <div class="chips" id="chips"></div>
+
+        <div class="inputRow">
+          <input id="answer" type="text" inputmode="latin-name" placeholder="Antwort eingeben …" autocomplete="off" aria-label="Organname eintippen" />
+          <button id="check">Antwort prüfen</button>
+          <button id="skip" class="secondary">Hinweis</button>
+        </div>
+
+        <div class="msg" id="msg" aria-live="polite"></div>
+
+        <div>
+          <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
+          <div class="center" style="margin-top:6px; color:#555; font-size:13px">
+            Richtig: <span id="right">0</span> / 5
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="summary" class="hidden">
+      <hr style="border:none; border-top:1px solid #e9e8f6; margin:16px 0" />
+      <div class="center">
+        <h2 style="margin:.2em 0">Ergebnis</h2>
+        <p id="sumText" style="margin:.2em 0; color:#333"></p>
+        <div id="codeWrap" class="codeBox hidden" aria-live="polite">
+          <span class="code" id="code">SDHFJ</span>
+          <button id="copy" class="secondary">Code kopieren</button>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap">
+          <button id="again">Nochmal spielen</button>
+        </div>
+        <div class="footer" style="margin-top:10px">
+          Rabattcode-Hinweis: <strong>SDHFJ</strong> ist ein <strong>100 % Rabatt‑Code für den Premium‑Pass</strong>, der nur angezeigt wird, wenn alle 5 Level <em>fehlerfrei</em> gelöst wurden.
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">Einzeldatei. Einfach als <code>anatomie_quiz.html</code> speichern und im Browser öffnen.</div>
+  </div>
+
+<script>
+(() => {
+  // ---- Daten ----
+  const levels = [
+    { name: 'Herz',  options: ['Herz','Lunge','Leber'],  draw: drawHeart },
+    { name: 'Lunge', options: ['Lunge','Niere','Gehirn'], draw: drawLung },
+    { name: 'Gehirn', options: ['Gehirn','Leber','Herz'], draw: drawBrain },
+    { name: 'Leber', options: ['Leber','Niere','Lunge'], draw: drawLiver },
+    { name: 'Niere', options: ['Niere','Gehirn','Herz'], draw: drawKidney },
+  ];
+
+  // ---- Elemente ----
+  const cv = document.getElementById('art');
+  const ctx = cv.getContext('2d');
+  const chipsEl = document.getElementById('chips');
+  const ansEl = document.getElementById('answer');
+  const msgEl = document.getElementById('msg');
+  const checkBtn = document.getElementById('check');
+  const skipBtn = document.getElementById('skip');
+  const progressEl = document.getElementById('progress');
+  const rightEl = document.getElementById('right');
+  const barFill = document.getElementById('barFill');
+  const sumWrap = document.getElementById('summary');
+  const sumText = document.getElementById('sumText');
+  const codeWrap = document.getElementById('codeWrap');
+  const copyBtn = document.getElementById('copy');
+  const againBtn = document.getElementById('again');
+
+  // ---- State ----
+  let i = 0;                    // aktuelles Level (0..4)
+  let correct = 0;              // Anzahl richtiger Antworten
+  let anyMistake = false;       // wurde irgendwann falsch geantwortet?
+  let levelHadMistake = false;  // flag für aktuelles Level
+
+  init();
+
+  function init(){
+    i = 0; correct = 0; anyMistake = false; levelHadMistake = false;
+    sumWrap.classList.add('hidden');
+    document.querySelector('.stage').classList.remove('hidden');
+    rightEl.textContent = String(correct);
+    updateBar();
+    showLevel();
+  }
+
+  function showLevel(){
+    const L = levels[i];
+    // UI
+    chipsEl.innerHTML = '';
+    L.options.forEach(opt => {
+      const s = document.createElement('span');
+      s.className = 'chip';
+      s.textContent = opt;
+      chipsEl.appendChild(s);
+    });
+    progressEl.textContent = `Level ${i+1} / ${levels.length}`;
+    ansEl.value = '';
+    ansEl.placeholder = 'Antwort eingeben …';
+    msgEl.textContent = '';
+    msgEl.className = 'msg';
+    levelHadMistake = false;
+    // Zeichnen
+    drawBackdrop();
+    L.draw(ctx, cv.width, cv.height);
+    ansEl.focus({preventScroll:true});
+  }
+
+  function drawBackdrop(){
+    const w = cv.width, h = cv.height;
+    const g = ctx.createLinearGradient(0,0, w,h);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(1, '#f3f4fb');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  function normalize(s){
+    return (s||'')
+      .toLowerCase()
+      .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+      .replace(/[^a-z]/g,''); // nur buchstaben
+  }
+
+  function isCorrect(input, target){
+    const a = normalize(input);
+    const b = normalize(target);
+    // akzeptiere auch Singular/Plural und simple Varianten
+    const syn = {
+      'herz':['herz','cardia','kardia'],
+      'lunge':['lunge','lungen'],
+      'gehirn':['gehirn','hirn','cerebrum','encephalon'],
+      'leber':['leber','hepar'],
+      'niere':['niere','nieren','ren']
+    };
+    for(const [key, arr] of Object.entries(syn)){
+      if(arr.includes(a) && arr.includes(b)) return true;
+    }
+    return a === b;
+  }
+
+  function checkAnswer(){
+    const L = levels[i];
+    const val = ansEl.value.trim();
+    if(!val){
+      msgEl.textContent = 'Bitte eine Antwort eintippen.';
+      msgEl.className = 'msg err';
+      return;
+    }
+    if(isCorrect(val, L.name)){
+      msgEl.textContent = 'Richtig!';
+      msgEl.className = 'msg ok';
+      if(!levelHadMistake){
+        correct++; rightEl.textContent = String(correct); updateBar();
+      }
+      setTimeout(next, 400);
+    }else{
+      levelHadMistake = true;
+      anyMistake = true;
+      msgEl.textContent = `Leider falsch. Tipp: erster Buchstabe „${L.name[0]}“.`;
+      msgEl.className = 'msg err';
+      ansEl.focus();
+    }
+  }
+
+  function next(){
+    i++;
+    if(i >= levels.length){
+      finish();
+    }else{
+      showLevel();
+    }
+  }
+
+  function updateBar(){
+    const p = Math.round((correct/levels.length)*100);
+    barFill.style.width = p + '%';
+  }
+
+  function finish(){
+    document.querySelector('.stage').classList.add('hidden');
+    sumWrap.classList.remove('hidden');
+    const txt = `Du hast ${correct} von ${levels.length} richtig.`;
+    sumText.textContent = txt;
+    if(!anyMistake && correct === levels.length){
+      codeWrap.classList.remove('hidden');
+      // Zusatztext anfügen
+      const note = document.createElement('div');
+      note.style.marginTop = '6px';
+      note.style.color = '#333';
+      note.textContent = '(100 % Rabatt‑Code für den Premium‑Pass, da du alles richtig beantwortet hast.)';
+      codeWrap.appendChild(note);
+    }else{
+      codeWrap.classList.add('hidden');
+    }
+  }
+
+  // --- Events ---
+  checkBtn.addEventListener('click', checkAnswer);
+  ansEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ checkAnswer(); }});
+  skipBtn.addEventListener('click', ()=>{
+    const L = levels[i];
+    msgEl.textContent = `Hinweis: gesuchtes Organ beginnt mit „${L.name[0]}“.`;
+    msgEl.className = 'msg';
+  });
+  copyBtn.addEventListener('click', ()=>{
+    const t = document.getElementById('code').textContent.trim();
+    navigator.clipboard?.writeText(t).then(()=>{
+      copyBtn.textContent = 'Kopiert';
+      setTimeout(()=>copyBtn.textContent='Code kopieren', 1200);
+    });
+  });
+  againBtn.addEventListener('click', init);
+
+  // ---- Zeichenfunktionen ----
+  function drawHeart(ctx, W, H){
+    const s = Math.min(W,H);
+    const cx = W*0.5, cy = H*0.52, r = s*0.32;
+    ctx.save();
+    // Schatten
+    ctx.translate(0, s*0.01);
+    heartPath(ctx, cx, cy, r);
+    ctx.fillStyle = 'rgba(0,0,0,.08)';
+    ctx.filter = 'blur(8px)';
+    ctx.fill();
+    ctx.restore();
+
+    // Körper
+    heartPath(ctx, cx, cy, r);
+    const g = ctx.createLinearGradient(0, cy-r, 0, cy+r);
+    g.addColorStop(0,'#ff7a98');
+    g.addColorStop(0.45,'#ff3b6a');
+    g.addColorStop(1,'#b91746');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = s*0.012;
+    ctx.strokeStyle = 'rgba(0,0,0,.12)';
+    ctx.stroke();
+
+    // Glanz
+    ctx.save();
+    ctx.globalAlpha = .23;
+    ctx.beginPath();
+    ctx.ellipse(cx-0.08*s, cy-0.18*s, 0.16*s, 0.09*s, -0.6, 0, Math.PI*2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.restore();
+  }
+  function heartPath(ctx, cx, cy, r){
+    ctx.beginPath();
+    ctx.moveTo(cx, cy+r*0.85);
+    ctx.bezierCurveTo(cx-r*1.0, cy+r*0.2, cx-r*1.1, cy-r*0.8, cx-r*0.2, cy-r*0.9);
+    ctx.bezierCurveTo(cx-r*0.0, cy-r*1.05, cx, cy-r*0.6, cx, cy-r*0.35);
+    ctx.bezierCurveTo(cx, cy-r*0.6, cx+r*0.0, cy-r*1.05, cx+r*0.2, cy-r*0.9);
+    ctx.bezierCurveTo(cx+r*1.1, cy-r*0.8, cx+r*1.0, cy+r*0.2, cx, cy+r*0.85);
+    ctx.closePath();
+  }
+
+  function drawLung(ctx, W, H){
+    const s = Math.min(W,H);
+    const cx = W*0.5, cy = H*0.54;
+    ctx.save();
+    // Trachea
+    ctx.beginPath();
+    ctx.roundRect(cx-0.035*s, cy-0.44*s, 0.07*s, 0.22*s, 0.03*s);
+    ctx.fillStyle = '#d7e3ff';
+    ctx.fill();
+    ctx.strokeStyle = '#98b6ff';
+    ctx.lineWidth = s*0.008;
+    ctx.stroke();
+    // Lunge links
+    lungLobe(ctx, cx-0.14*s, cy+0.02*s, s*0.28, s*0.36, true);
+    // Lunge rechts
+    lungLobe(ctx, cx+0.14*s, cy+0.02*s, s*0.28, s*0.36, false);
+    ctx.restore();
+  }
+  function lungLobe(ctx, cx, cy, w, h, left){
+    ctx.save();
+    ctx.beginPath();
+    const rx = w/2, ry = h/2;
+    ctx.moveTo(cx, cy-h*0.55);
+    ctx.bezierCurveTo(cx-(left?rx*1.2:rx*0.6), cy-h*0.25, cx-(left?rx*1.1:rx*0.4), cy+h*0.15, cx, cy+h*0.45);
+    ctx.bezierCurveTo(cx+(left?rx*0.2:rx*1.2), cy+h*0.1, cx+(left?rx*0.5:rx*1.1), cy-h*0.2, cx, cy-h*0.55);
+    const g = ctx.createLinearGradient(cx, cy-h*0.6, cx, cy+h*0.5);
+    g.addColorStop(0,'#f6a4a4');
+    g.addColorStop(1,'#ef6a6a');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.12)';
+    ctx.lineWidth = Math.max(2, w*0.02);
+    ctx.stroke();
+    // kleine Gefäße
+    ctx.globalAlpha = .25;
+    ctx.strokeStyle = '#b04444';
+    ctx.lineWidth = 2;
+    for(let k=0;k<6;k++){
+      ctx.beginPath();
+      ctx.moveTo(cx, cy-h*0.4 + k* (h*0.15/1.5));
+      ctx.bezierCurveTo(cx+(left?-rx*0.6:rx*0.6), cy-h*0.2+k*10, cx+(left?-rx*0.7:rx*0.7), cy+k*5, cx+(left?-rx*0.2:rx*0.2), cy+h*0.3);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawBrain(ctx, W, H){
+    const s = Math.min(W,H);
+    const cx = W*0.5, cy = H*0.52;
+    ctx.save();
+    // Schatten
+    ctx.translate(0, s*0.01);
+    brainPath(ctx, cx, cy, s*0.35);
+    ctx.fillStyle = 'rgba(0,0,0,.06)';
+    ctx.filter = 'blur(6px)';
+    ctx.fill();
+    ctx.restore();
+
+    brainPath(ctx, cx, cy, s*0.35);
+    const g = ctx.createLinearGradient(0, cy-s*0.3, 0, cy+s*0.3);
+    g.addColorStop(0,'#ffd1d9');
+    g.addColorStop(1,'#ff9fb3');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = s*0.01;
+    ctx.strokeStyle = 'rgba(0,0,0,.12)';
+    ctx.stroke();
+
+    // Gyri
+    ctx.save();
+    ctx.strokeStyle = '#cc6f84';
+    ctx.lineWidth = s*0.008;
+    ctx.globalAlpha = .6;
+    for(let k=0;k<18;k++){
+      ctx.beginPath();
+      const a = (k/18)*Math.PI*2;
+      const r = s*0.27 + Math.sin(k*0.8)*s*0.02;
+      ctx.arc(cx + Math.cos(a)*s*0.03, cy + Math.sin(a)*s*0.02, r, a, a+Math.PI*0.2, false);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function brainPath(ctx, cx, cy, r){
+    ctx.beginPath();
+    ctx.ellipse(cx-r*0.05, cy, r*1.15, r*0.9, 0, 0, Math.PI*2);
+  }
+
+  function drawLiver(ctx, W, H){
+    const s = Math.min(W,H);
+    const cx = W*0.52, cy = H*0.58;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx-s*0.34, cy-s*0.12);
+    ctx.bezierCurveTo(cx-s*0.05, cy-s*0.28, cx+s*0.18, cy-s*0.26, cx+s*0.28, cy-s*0.05);
+    ctx.bezierCurveTo(cx+s*0.36, cy+s*0.14, cx+s*0.06, cy+s*0.2, cx-s*0.22, cy+s*0.18);
+    ctx.bezierCurveTo(cx-s*0.32, cy+s*0.1, cx-s*0.40, cy, cx-s*0.34, cy-s*0.12);
+    const g = ctx.createLinearGradient(0, cy-s*0.2, 0, cy+s*0.2);
+    g.addColorStop(0,'#b55b44');
+    g.addColorStop(1,'#8e3d2b');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = s*0.012;
+    ctx.strokeStyle = 'rgba(0,0,0,.12)';
+    ctx.stroke();
+    // Glanz
+    ctx.save();
+    ctx.globalAlpha=.2; ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.ellipse(cx-s*0.06, cy-s*0.10, s*0.16, s*0.07, -0.5, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawKidney(ctx, W, H){
+    const s = Math.min(W,H);
+    const cx = W*0.5, cy = H*0.55;
+    // linke Niere
+    kidneyShape(ctx, cx-s*0.16, cy, s*0.22, true);
+    // rechte Niere
+    kidneyShape(ctx, cx+s*0.16, cy, s*0.22, false);
+    // Ureter
+    ctx.save();
+    ctx.strokeStyle = '#a06d4e'; ctx.lineWidth = s*0.012;
+    ctx.beginPath();
+    ctx.moveTo(cx-s*0.02, cy+s*0.10); ctx.quadraticCurveTo(cx, cy+s*0.22, cx, cy+s*0.40);
+    ctx.moveTo(cx+s*0.02, cy+s*0.10); ctx.quadraticCurveTo(cx, cy+s*0.22, cx, cy+s*0.40);
+    ctx.stroke(); ctx.restore();
+  }
+  function kidneyShape(ctx, cx, cy, r, left){
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx-r*0.6, cy-r*0.2);
+    ctx.bezierCurveTo(cx-r*0.8, cy+r*0.1, cx-r*0.4, cy+r*0.7, cx+r*0.1, cy+r*0.6);
+    ctx.bezierCurveTo(cx+r*0.6, cy+r*0.5, cx+r*0.7, cy, cx+r*0.2, cy-r*0.3);
+    ctx.bezierCurveTo(cx, cy-r*0.55, cx-r*0.2, cy-r*0.5, cx-r*0.6, cy-r*0.2);
+    const g = ctx.createLinearGradient(cx, cy-r*0.8, cx, cy+r*0.8);
+    g.addColorStop(0,'#a8684c'); g.addColorStop(1,'#7e4a35');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = r*0.10; ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.stroke();
+    // Hilus
+    ctx.beginPath();
+    ctx.arc(cx+r*0.05*(left?-1:1), cy+r*0.02, r*0.12, 0, Math.PI*2);
+    ctx.fillStyle = '#8b563f'; ctx.fill();
+    ctx.restore();
+  }
+})();
+</script>
+</body>
+</html>
