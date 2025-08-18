@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anatomie-Puzzle – Finde den richtigen Körper</title>
+<style>
+  :root{
+    --bg:#0e1116;
+    --panel:#151923;
+    --accent:#4ADE80;
+    --accent-2:#60A5FA;
+    --text:#E5E7EB;
+    --muted:#9CA3AF;
+    --danger:#F87171;
+    --tile:#1f2532;
+    --tile-hover:#242b3a;
+    --grid-gap:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
+  header{padding:16px 20px;border-bottom:1px solid #1f2430;background:linear-gradient(180deg,#121620,#0e1116)}
+  header h1{font-size:18px;margin:0;display:flex;align-items:center;gap:10px}
+  header small{color:var(--muted)}
+  main{max-width:900px;margin:0 auto;padding:20px;display:grid;grid-template-columns:1fr;gap:16px}
+  .panel{background:var(--panel);border:1px solid #1f2430;border-radius:14px;padding:16px}
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .row > *{flex:none}
+  select,button,input[type="text"]{
+    background:#0f1420;border:1px solid #263041;color:var(--text);
+    padding:10px 12px;border-radius:10px;font-size:14px;
+  }
+  button{cursor:pointer}
+  button.primary{background:var(--accent);border-color:transparent;color:#081b0f;font-weight:700}
+  button.secondary{background:#0f1420}
+  button.danger{background:var(--danger);border-color:transparent;color:#221}
+  .stats{display:flex;gap:18px;color:var(--muted);font-size:14px}
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:var(--grid-gap);
+    width:min(92vw,560px);
+    margin:0 auto;
+  }
+  .tile{
+    background:var(--tile);
+    border:1px solid #2a3446;
+    border-radius:12px;
+    aspect-ratio:1/1;
+    display:flex;align-items:center;justify-content:center;
+    padding:8px;text-align:center;
+    font-weight:700;
+    user-select:none;
+    transition:transform .06s ease, background .15s ease, border-color .15s ease;
+  }
+  .tile.dragging{opacity:.6;transform:scale(0.98)}
+  .tile:hover{background:var(--tile-hover)}
+  .tile .label{font-size:15px;line-height:1.25}
+  .tile .icon{font-size:30px;display:block;margin-bottom:8px}
+  .target{outline:2px dashed var(--accent-2);outline-offset:-6px}
+  .legend{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .legend div{background:#0f1420;border:1px solid #263041;border-radius:10px;padding:10px;font-size:12px;color:var(--muted);}
+  .footer{color:var(--muted);font-size:12px;text-align:center;padding:10px}
+  .badge{padding:4px 8px;border-radius:100px;font-size:12px;background:#0f1420;border:1px solid #263041;color:var(--muted)}
+  dialog{border:none;border-radius:16px;padding:0;max-width:520px;width:92vw;background:var(--panel);color:var(--text)}
+  dialog::backdrop{background-color:rgba(0,0,0,.6)}
+  .modal-head{padding:16px 18px;border-bottom:1px solid #1f2430}
+  .modal-body{padding:18px}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;padding:16px;border-top:1px solid #1f2430}
+  .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#0f1420;border:1px solid #263041;border-radius:10px;padding:10px 12px;display:inline-block}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  @media (max-width:520px){
+    .grid{gap:8px}
+    .tile .icon{font-size:26px}
+    .tile .label{font-size:13px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧩 Anatomie-Puzzle <small class="badge">Drag & Drop · 3×3</small></h1>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <label for="puzzle" class="sr-only">Puzzle wählen</label>
+        <select id="puzzle">
+          <option value="organe">Organe (torso)</option>
+          <option value="skelett">Skelett (Achsenskelett)</option>
+          <option value="muskeln">Muskeln (vereinfacht)</option>
+        </select>
+        <button id="shuffle" class="secondary">Neu mischen</button>
+        <button id="solve" class="secondary">Lösung zeigen</button>
+      </div>
+      <div class="stats">
+        <div>⏱️ Zeit: <span id="time">00:00</span></div>
+        <div>🔁 Züge: <span id="moves">0</span></div>
+        <div>✅ Korrekt: <span id="correct">0/9</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="grid" id="grid" aria-label="Puzzle-Gitter"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="panel">
+    <strong>So geht’s:</strong>
+    <p>Ziehe die Kacheln per Drag &amp; Drop an die richtige Position (von oben links nach unten rechts). Wenn alles korrekt sitzt, erhältst du automatisch einen **Rabattcode**.</p>
+    <div class="row">
+      <label for="customCode">Eigenen Code setzen (optional):</label>
+      <input type="text" id="customCode" placeholder="z. B. PREMIUM25-ANATOMIE">
+      <button id="applyCode" class="secondary">Übernehmen</button>
+    </div>
+  </section>
+
+  <div class="footer">Tipp: Lange gedrückt halten auf Mobilgeräten, dann ziehen. – Designed für Telegram/Instagram-Links.</div>
+</main>
+
+<dialog id="win">
+  <div class="modal-head"><strong>🎉 Geschafft!</strong></div>
+  <div class="modal-body">
+    <p>Du hast das Puzzle korrekt zusammengesetzt.</p>
+    <p>Dein Rabattcode für den Premium‑Pass:</p>
+    <div class="code" id="codeBox">PREMIUM20-ABCDE</div>
+    <p id="copied" style="display:none;color:var(--accent)">Code kopiert!</p>
+  </div>
+  <div class="modal-actions">
+    <button id="copy" class="primary">Code kopieren</button>
+    <button id="playAgain" class="secondary">Noch eine Runde</button>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  const grid = document.getElementById('grid');
+  const legend = document.getElementById('legend');
+  const timeEl = document.getElementById('time');
+  const movesEl = document.getElementById('moves');
+  const correctEl = document.getElementById('correct');
+  const puzzleSel = document.getElementById('puzzle');
+  const shuffleBtn = document.getElementById('shuffle');
+  const solveBtn = document.getElementById('solve');
+  const winDlg = document.getElementById('win');
+  const codeBox = document.getElementById('codeBox');
+  const copyBtn = document.getElementById('copy');
+  const againBtn = document.getElementById('playAgain');
+  const applyCodeBtn = document.getElementById('applyCode');
+  const customCodeInput = document.getElementById('customCode');
+  const copiedNote = document.getElementById('copied');
+
+  const PUZZLES = {
+    organe: [
+      { icon:'🧠', label:'Gehirn', hint:'Schädelhöhle' },
+      { icon:'👃', label:'Trachea', hint:'Hals/Brust' },
+      { icon:'🫁', label:'Lungen', hint:'Thorax' },
+      { icon:'❤️', label:'Herz', hint:'Mediastinum' },
+      { icon:'🫀', label:'Aorta', hint:'Thorakal/Abd.' },
+      { icon:'🍽️', label:'Magen', hint:'Epigastrium' },
+      { icon:'🧫', label:'Leber', hint:'Rechter Oberbauch' },
+      { icon:'🪙', label:'Pankreas', hint:'Retroperitoneum' },
+      { icon:'🧻', label:'Darm', hint:'Abdomen/Becken' },
+    ],
+    skelett: [
+      { icon:'💀', label:'Schädel', hint:'Neurokranium' },
+      { icon:'🦴', label:'Halswirbel', hint:'C1–C7' },
+      { icon:'🦴', label:'Brustwirbel', hint:'Th1–Th12' },
+      { icon:'🦴', label:'Lendenwirbel', hint:'L1–L5' },
+      { icon:'🛡️', label:'Rippen/Brustbein', hint:'Thorax' },
+      { icon:'🧱', label:'Becken', hint:'Os coxae' },
+      { icon:'🦿', label:'Femur', hint:'Oberschenkel' },
+      { icon:'🦿', label:'Tibia/Fibula', hint:'Unterschenkel' },
+      { icon:'🦶', label:'Fußknochen', hint:'Tarsus/Metatarsus' },
+    ],
+    muskeln: [
+      { icon:'🧠', label:'Frontalis', hint:'Stirn' },
+      { icon:'🫦', label:'Orbicularis oris', hint:'Mundring' },
+      { icon:'🧍‍♂️', label:'Pectoralis major', hint:'Brust' },
+      { icon:'💪', label:'Bizeps brachii', hint:'Oberarm' },
+      { icon:'🧍', label:'Rectus abdominis', hint:'Bauch' },
+      { icon:'🧍', label:'Gluteus maximus', hint:'Gesäß' },
+      { icon:'🦿', label:'Quadrizeps', hint:'Vorderer Oberschenkel' },
+      { icon:'🦿', label:'Gastrocnemius', hint:'Wade' },
+      { icon:'🦶', label:'Fußmuskeln', hint:'Plantar' },
+    ],
+  };
+
+  let timer=null, seconds=0, moves=0;
+  let data=[], // current tiles (objects with id, pos)
+      order=[]; // array of indices 0..8 representing correct order
+
+  const pad = n => String(n).padStart(2,'0');
+  const startTimer = () => {
+    stopTimer();
+    seconds = 0;
+    timer = setInterval(()=>{
+      seconds++;
+      timeEl.textContent = `${pad(Math.floor(seconds/60))}:${pad(seconds%60)}`;
+    },1000);
+  };
+  const stopTimer = () => timer && clearInterval(timer);
+
+  function fisherYates(arr){
+    let a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    // ensure not already solved
+    if(a.every((v,i)=>v===i)) return fisherYates(arr);
+    return a;
+  }
+
+  function build(preset='organe'){
+    // build data and DOM
+    grid.innerHTML='';
+    legend.innerHTML='';
+    data = PUZZLES[preset].map((item,idx)=>({ ...item, id: idx }));
+    order = data.map((_,i)=>i);
+    const shuffled = fisherYates(order);
+    moves=0; seconds=0;
+    timeEl.textContent="00:00";
+    movesEl.textContent="0";
+    correctEl.textContent="0/9";
+    stopTimer(); startTimer();
+
+    // draw legend
+    data.forEach(obj=>{
+      const el = document.createElement('div');
+      el.textContent = `${obj.label} — ${obj.hint}`;
+      legend.appendChild(el);
+    });
+
+    // tiles
+    shuffled.forEach((id,place)=>{
+      const obj = data[id];
+      const tile = document.createElement('div');
+      tile.className='tile';
+      tile.draggable=true;
+      tile.dataset.id = id; // correct identity
+      tile.dataset.place = place;
+      tile.innerHTML = `<div class="inner"><span class="icon">${obj.icon}</span><div class="label">${obj.label}</div></div>`;
+      addDnD(tile);
+      grid.appendChild(tile);
+    });
+    updateCorrectCount();
+  }
+
+  function addDnD(tile){
+    tile.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', tile.dataset.place);
+      tile.classList.add('dragging');
+    });
+    tile.addEventListener('dragend', e => tile.classList.remove('dragging'));
+    tile.addEventListener('dragover', e => { e.preventDefault(); tile.classList.add('target'); });
+    tile.addEventListener('dragleave', e => tile.classList.remove('target'));
+    tile.addEventListener('drop', e => {
+      e.preventDefault();
+      tile.classList.remove('target');
+      const fromPlace = parseInt(e.dataTransfer.getData('text/plain'),10);
+      const toPlace = parseInt(tile.dataset.place,10);
+      if(isNaN(fromPlace) || isNaN(toPlace) || fromPlace===toPlace) return;
+
+      const fromEl = [...grid.children].find(n => parseInt(n.dataset.place,10)===fromPlace);
+      const toEl = tile;
+
+      // swap in DOM
+      const fromNext = fromEl.nextSibling;
+      grid.insertBefore(fromEl, toEl);
+      if(fromNext) grid.insertBefore(toEl, fromNext);
+      else grid.appendChild(toEl);
+
+      // swap place attributes
+      fromEl.dataset.place = toPlace;
+      toEl.dataset.place = fromPlace;
+
+      moves++;
+      movesEl.textContent = moves;
+      updateCorrectCount();
+      maybeWin();
+    });
+  }
+
+  function updateCorrectCount(){
+    const tiles = [...grid.children];
+    let correct=0;
+    tiles.forEach((el,place)=>{
+      const id = parseInt(el.dataset.id,10);
+      if(id===place) correct++;
+    });
+    correctEl.textContent = `${correct}/9`;
+  }
+
+  function maybeWin(){
+    const tiles = [...grid.children];
+    const solved = tiles.every((el,place)=> parseInt(el.dataset.id,10)===place );
+    if(solved){
+      stopTimer();
+      revealCode();
+    }
+  }
+
+  function revealCode(){
+    // allow custom code via field or ?code= param
+    const params = new URLSearchParams(location.search);
+    let code = customCodeInput.value.trim() || params.get('code') || '';
+    if(!code){
+      const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let rnd='';
+      for(let i=0;i<5;i++) rnd += letters[Math.floor(Math.random()*letters.length)];
+      code = `PREMIUM20-${rnd}`;
+    }
+    codeBox.textContent = code;
+    copiedNote.style.display = 'none';
+    winDlg.showModal();
+  }
+
+  function setSolvedState(){
+    // place correct order in DOM
+    grid.innerHTML='';
+    data.forEach((obj,id)=>{
+      const tile = document.createElement('div');
+      tile.className='tile';
+      tile.draggable=true;
+      tile.dataset.id = id;
+      tile.dataset.place = id;
+      tile.innerHTML = `<div class="inner"><span class="icon">${obj.icon}</span><div class="label">${obj.label}</div></div>`;
+      addDnD(tile);
+      grid.appendChild(tile);
+    });
+    updateCorrectCount();
+  }
+
+  // Controls
+  puzzleSel.addEventListener('change', () => build(puzzleSel.value));
+  shuffleBtn.addEventListener('click', () => build(puzzleSel.value));
+  solveBtn.addEventListener('click', () => setSolvedState());
+  againBtn.addEventListener('click', () => { winDlg.close(); build(puzzleSel.value); });
+  copyBtn.addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(codeBox.textContent);
+      copiedNote.style.display='block';
+      setTimeout(()=>copiedNote.style.display='none', 1500);
+    }catch(e){ /* noop */ }
+  });
+  applyCodeBtn.addEventListener('click', () => {
+    // just acknowledges; code will be used on win
+    customCodeInput.blur();
+  });
+
+  // Initialize with selected puzzle
+  build(puzzleSel.value);
+})();
+</script>
+</body>
+</html>
