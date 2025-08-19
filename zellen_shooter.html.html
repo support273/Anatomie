@@ -1,0 +1,498 @@
+!DOCTYPE html
+html lang=de
+head
+meta charset=utf-8 
+meta name=viewport content=width=device-width, initial-scale=1 
+titleZellen-Shooter – Medizin-Minispieltitle
+style
+  root{
+    --bg#0b1220;
+    --panel#121a2b;
+    --accent#4ad;
+    --ok#47c774;
+    --warn#ffb020;
+    --bad#ff5c6a;
+    --muted#9fb0ce;
+  }
+  html,body{height100%;margin0;backgroundlinear-gradient(180deg,#0b1220,#0a0f1a);}
+  body{displayflex;align-itemscenter;justify-contentcenter;font-familysystem-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif;color#eef3ff}
+  .wrap{widthmin(1100px,96vw);displaygrid;grid-template-columns 1fr; gap12px}
+  .hud{displayflex;gap10px;flex-wrapwrap;align-itemscenter;justify-contentspace-between;backgroundvar(--panel);border1px solid #1f2a44;border-radius12px;padding10px 12px}
+  .cluster{displayflex;gap10px;flex-wrapwrap;align-itemscenter}
+  .badge{background#0e1526;border1px solid #1f2a44;border-radius10px;padding6px 10px;font-weight600}
+  .badge strong{color#fff}
+  .btn{appearancenone;border1px solid #2b3960;background#0f1730;color#e8f0ff;border-radius10px;padding8px 12px;font-weight700;cursorpointer}
+  .btnhover{filterbrightness(1.1)}
+  .btnactive{transformtranslateY(1px)}
+  canvas{width100%;heightauto;backgroundradial-gradient(1200px 700px at 50% 40%, #10223a, #0a1222 70%, #08101d)}
+  .panel{backgroundvar(--panel);border1px solid #1f2a44;border-radius12px;padding14px}
+  .title{font-sizeclamp(18px,2.4vw,24px);margin0 0 6px}
+  .muted{colorvar(--muted);font-size0.95rem}
+  dialog{bordernone;border-radius14px;padding0;max-widthmin(560px,92vw);backgroundvar(--panel);color#eef3ff}
+  dialogbackdrop{backgroundrgba(0,0,0,.5)}
+  .modal{padding18px}
+  .modal h2{margin-top0}
+  .code{font-familyui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background#0d162a;border1px dashed #2b3960;border-radius10px;padding10px 12px;font-size1.1rem;displayinline-block}
+  .progress{height8px;background#0e1526;border1px solid #1f2a44;border-radius999px;overflowhidden}
+  .progress  div{height100%;backgroundlinear-gradient(90deg,var(--accent),#7fd7ff);width0%}
+  .legend{displayflex;gap12px;flex-wrapwrap;margin-top8px}
+  .dot{width12px;height12px;border-radius50%;displayinline-block;vertical-alignmiddle;margin-right6px}
+  .dot.bad{backgroundvar(--bad)}
+  .dot.ok{backgroundvar(--ok)}
+  .dot.warn{backgroundvar(--warn)}
+  @media (max-width700px){
+    .hud{gap8px}
+    .badge{font-size.95rem}
+    .btn{font-size.95rem}
+  }
+style
+head
+body
+  div class=wrap
+    div class=hud id=hud
+      div class=cluster
+        div class=badgeLevel strong id=level1  5strongdiv
+        div class=badgeZeit strong id=time20strongsdiv
+        div class=badgeTreffer strong id=hits0strongdiv
+        div class=badgeZiele in diesem Level strong id=target—strongdiv
+      div
+      div class=cluster
+        div class=badgeLeben strong id=lives3strongdiv
+        button class=btn id=btnPausePausebutton
+        button class=btn id=btnRestartNeustartbutton
+      div
+    div
+
+    canvas id=game width=1000 height=600 aria-label=Spielfeldcanvas
+
+    div class=panel
+      h2 class=titleSo spielst duh2
+      div class=muted
+        TippeKlicke auf bErregerb (rote Punkte), meide bgesunde Zellenb (grüne Punkte). Triffst du eine gesunde Zelle, verlierst du ein Leben.
+        Schaffe in jedem Level die geforderte Trefferzahl innerhalb des Zeitlimits.br
+        bLevel 5b hat einen bBossb (gelb) – er benötigt mehrere Treffer.
+        div class=legend
+          spanspan class=dot badspanErregerspan
+          spanspan class=dot okspanGesunde Zelle (nicht treffen)span
+          spanspan class=dot warnspanBoss (mehrere Treffer nötig)span
+        div
+      div
+      div class=muted style=margin-top10px
+        Bestehe alle fünf Levels, um am Ende deinen bRabattcodeb zu erhalten.
+      div
+      div class=progress aria-label=Level-Fortschrittdiv id=bardivdiv
+    div
+  div
+
+  dialog id=modal
+    div class=modal
+      h2 id=modalTitleSpiel pausierth2
+      p id=modalMsg class=mutedp
+      div id=codeWrap style=displaynone;margin-top12px
+        div class=mutedDein Rabattcodediv
+        div class=code id=code—div
+        div class=muted style=margin-top8pxHinweis Code erscheint nur, wenn du alle fünf Levels erfolgreich abgeschlossen hast.div
+      div
+      div style=displayflex;gap10px;justify-contentflex-end;margin-top14px
+        button class=btn id=btnCloseWeiterbutton
+        button class=btn id=btnAgainNochmal spielenbutton
+      div
+    div
+  dialog
+
+script
+(function(){
+  use strict;
+
+   --- Spiel-Parameter (du kannst das hier nach Wunsch anpassen) ---
+  const TOTAL_LEVELS = 5;
+  const START_LIVES = 3;
+  const LEVEL_TIME = 20;                  Sekunden pro Level
+  const TARGET_HITS_BY_LEVEL = [10, 12, 14, 16, 1];  im Level 5 = Boss (1x besiegen)
+  const PATH_SPEED_BY_LEVEL = [0.8, 1.0, 1.2, 1.4, 1.5];  Bewegungsgeschwindigkeit
+  const SPAWN_RATE_BY_LEVEL = [900, 800, 700, 650, 0];    ms zwischen Spawns (Level 5 spawnt regulär nicht)
+  const BOSS_RADIUS = 32;
+  const BOSS_HITS_REQUIRED = 5;
+
+   Rabattcode – nur am Ende bei Erfolg anzeigen
+  const DISCOUNT_CODE = SDHFJ;
+
+   --- DOM-Referenzen ---
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const hud = {
+    level document.getElementById('level'),
+    time document.getElementById('time'),
+    hits document.getElementById('hits'),
+    target document.getElementById('target'),
+    lives document.getElementById('lives'),
+    bar document.getElementById('bar'),
+  };
+  const btnPause = document.getElementById('btnPause');
+  const btnRestart = document.getElementById('btnRestart');
+
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalMsg = document.getElementById('modalMsg');
+  const codeWrap = document.getElementById('codeWrap');
+  const codeEl = document.getElementById('code');
+  const btnClose = document.getElementById('btnClose');
+  const btnAgain = document.getElementById('btnAgain');
+
+   --- Retina-Scaling für scharfe Darstellung ---
+  function fitCanvasToDisplay(){
+    const ratio = Math.max(1, Math.min(2, window.devicePixelRatio  1));
+    const cssW = canvas.clientWidth;
+    const cssH = Math.round(cssW  0.6);
+    canvas.style.height = cssH+px;
+    const w = Math.floor(cssW  ratio);
+    const h = Math.floor(cssH  ratio);
+    if (canvas.width !== w  canvas.height !== h){
+      canvas.width = w;
+      canvas.height = h;
+    }
+    ctx.setTransform(ratio,0,0,ratio,0,0);  zeichne in CSS-Pixeln
+  }
+  fitCanvasToDisplay();
+  window.addEventListener('resize', fitCanvasToDisplay);
+
+   --- Game State ---
+  let state;
+
+  function makeInitialState(){
+    return {
+      running true,
+      paused false,
+      level 1,
+      timeLeft LEVEL_TIME,
+      lives START_LIVES,
+      hits 0,
+      levelHits 0,
+      targets [],
+      lastSpawn 0,
+      boss null,
+      rafId 0,
+      lastTs performance.now(),
+    };
+  }
+
+   --- Entities ---
+  function spawnEnemy(){
+    const r = rand(14, 22);
+    const {x,y,vx,vy} = spawnFromEdge(r);
+    return {type'enemy', x, y, r, vx, vy, alivetrue};
+  }
+  function spawnHealthy(){
+    const r = rand(12, 18);
+    const {x,y,vx,vy} = spawnFromEdge(r);
+    return {type'healthy', x, y, r, vx, vy, alivetrue};
+  }
+  function spawnFromEdge(r){
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const edge = Math.floor(Math.random()4);
+    let x,y, vx,vy;
+    const sp = PATH_SPEED_BY_LEVEL[state.level-1];
+    switch(edge){
+      case 0 x = -r; y = rand(0,h); vx = sp; vy = rand(-sp, sp); break;  links
+      case 1 x = w + r; y = rand(0,h); vx = -sp; vy = rand(-sp, sp); break;  rechts
+      case 2 x = rand(0,w); y = -r; vx = rand(-sp, sp); vy = sp; break;  oben
+      default x = rand(0,w); y = h + r; vx = rand(-sp, sp); vy = -sp; break;  unten
+    }
+    return {x,y,vx,vy};
+  }
+  function spawnBoss(){
+     Boss beginnt nahe der Mitte und „pendelt“
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    return {
+      type'boss', x w2, y h2, r BOSS_RADIUS,
+      vx 1.2, vy 1.0, hp BOSS_HITS_REQUIRED, alivetrue
+    };
+  }
+
+   --- Utilities ---
+  function rand(a,b){ return a + Math.random()(b-a); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  function resetLevelTimer(){ state.timeLeft = LEVEL_TIME; }
+
+  function updateHUD(){
+    hud.level.textContent = `${state.level}  ${TOTAL_LEVELS}`;
+    hud.time.textContent = Math.max(0, Math.ceil(state.timeLeft)).toString();
+    hud.hits.textContent = state.hits.toString();
+    hud.lives.textContent = state.lives.toString();
+    const targetRequired = TARGET_HITS_BY_LEVEL[state.level-1];
+    hud.target.textContent = targetRequired.toString();
+    const pct = clamp((state.level-1 + state.levelHitsMath.max(1,targetRequired))  TOTAL_LEVELS, 0, 1)100;
+    hud.bar.style.width = pct.toFixed(1) + %;
+  }
+
+  function endGame(win){
+    state.running = false;
+    state.paused = true;
+    cancelAnimationFrame(state.rafId);
+    if (win){
+      modalTitle.textContent = Glückwunsch!;
+      modalMsg.textContent = Du hast alle fünf Levels bestanden. Hier ist dein Rabattcode;
+      codeWrap.style.display = 'block';
+      codeEl.textContent = DISCOUNT_CODE;
+    }else{
+      modalTitle.textContent = Spiel vorbei;
+      codeWrap.style.display = 'none';
+       Zwei Fälle unterscheiden
+      if (state.lives = 0){
+        modalMsg.textContent = Du hast alle Leben verloren. Tipp Gesunde Zellen (grün) niemals anklicken.;
+      }else{
+        modalMsg.textContent = Zeit abgelaufen oder Ziel nicht erreicht. Schaffe alle fünf Levels, um den Code zu erhalten.;
+      }
+    }
+    if (!modal.open) modal.showModal();
+  }
+
+  function nextLevel(){
+    state.level++;
+    if (state.level  TOTAL_LEVELS){
+      endGame(true);
+      return;
+    }
+    state.targets.length = 0;
+    state.levelHits = 0;
+    resetLevelTimer();
+    state.lastSpawn = 0;
+    state.boss = (state.level === TOTAL_LEVELS)  spawnBoss()  null;
+  }
+
+   --- Zeichnen ---
+  function draw(){
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+
+     Hintergrund (leichtes Glow-Muster)
+    ctx.clearRect(0,0,w,h);
+     feines Grid
+    ctx.globalAlpha = 0.08;
+    ctx.beginPath();
+    for (let x=0; xw; x+=48){ ctx.moveTo(x,0); ctx.lineTo(x,h); }
+    for (let y=0; yh; y+=48){ ctx.moveTo(0,y); ctx.lineTo(w,y); }
+    ctx.strokeStyle = #6aa1ff;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+     Entities
+    for (const t of state.targets){
+      if (!t.alive) continue;
+      if (t.type === 'enemy'){
+        ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI2);
+        ctx.fillStyle = #ff5c6a; ctx.fill();
+         „Stachel“-Akzent
+        ctx.beginPath(); ctx.arc(t.x- t.r0.35, t.y- t.r0.35, t.r0.3, 0, Math.PI2);
+        ctx.fillStyle = #ff93a0; ctx.fill();
+      }else if (t.type === 'healthy'){
+        ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI2);
+        ctx.fillStyle = #47c774; ctx.fill();
+        ctx.beginPath(); ctx.arc(t.x- t.r0.25, t.y- t.r0.25, t.r0.28, 0, Math.PI2);
+        ctx.fillStyle = #7ee3a1; ctx.fill();
+      }
+    }
+    if (state.boss && state.boss.alive){
+      const b = state.boss;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI2);
+      ctx.fillStyle = #ffb020; ctx.fill();
+       HP-Ring
+      ctx.beginPath();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = #ffe1a6;
+      const pct = b.hp  BOSS_HITS_REQUIRED;
+      ctx.arc(b.x, b.y, b.r+6, -Math.PI2, -Math.PI2 + Math.PI2pct);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+  }
+
+   --- Logik ---
+  function update(dt, ts){
+     Timer
+    state.timeLeft -= dt;
+    if (state.timeLeft = 0){
+       Levelziel erreicht
+      const need = TARGET_HITS_BY_LEVEL[state.level-1];
+      if (state.levelHits = need){
+        nextLevel();
+        if (!state.running) return;
+      }else{
+        endGame(false);
+        return;
+      }
+    }
+
+     Spawns (außer im Boss-Level)
+    const spawnRate = SPAWN_RATE_BY_LEVEL[state.level-1];
+    if (spawnRate  0 && ts - state.lastSpawn  spawnRate){
+      state.lastSpawn = ts;
+       Verhältnis 70% Feinde, 30% gesunde Zellen
+      if (Math.random()  0.7){
+        state.targets.push(spawnEnemy());
+      }else{
+        state.targets.push(spawnHealthy());
+      }
+       Begrenzen
+      if (state.targets.length  40){
+        state.targets.splice(0, state.targets.length - 40);
+      }
+    }
+
+     Bewegung
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    for (const t of state.targets){
+      if (!t.alive) continue;
+      t.x += t.vx  (dt60);
+      t.y += t.vy  (dt60);
+       weiche Richtungsänderung
+      t.vx = clamp(t.vx + (Math.random()-0.5)0.05, -2.2, 2.2);
+      t.vy = clamp(t.vy + (Math.random()-0.5)0.05, -2.2, 2.2);
+       Abprallen
+      if (t.x  -50  t.x  w+50  t.y  -50  t.y  h+50){
+        t.alive = false;
+      }
+    }
+    if (state.boss && state.boss.alive){
+      const b = state.boss;
+      b.x += b.vx  (dt60);
+      b.y += b.vy  (dt60);
+      if (b.x  BOSS_RADIUS  b.x  w-BOSS_RADIUS) b.vx = -1;
+      if (b.y  BOSS_RADIUS  b.y  h-BOSS_RADIUS) b.vy = -1;
+    }
+
+    updateHUD();
+  }
+
+  function loop(ts){
+    if (!state.running  state.paused){
+      return;
+    }
+    const dt = Math.min(0.05, (ts - state.lastTs)1000);
+    state.lastTs = ts;
+    update(dt, ts);
+    draw();
+    state.rafId = requestAnimationFrame(loop);
+  }
+
+   --- Eingaben ---
+  function handleClick(clientX, clientY){
+    if (!state.running  state.paused) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+     Boss zuerst prüfen (oberste Priorität)
+    if (state.boss && state.boss.alive){
+      const dx = x - state.boss.x, dy = y - state.boss.y;
+      if (dxdx + dydy = state.boss.rstate.boss.r){
+        state.boss.hp--;
+        if (state.boss.hp = 0){
+          state.boss.alive = false;
+          state.hits++;
+          state.levelHits++;
+           Level sofort beendet
+          const need = TARGET_HITS_BY_LEVEL[state.level-1];
+          if (state.levelHits = need){
+            nextLevel();
+            return;
+          }
+        }
+        updateHUD();
+        return;
+      }
+    }
+
+     Ansonsten erstes getroffenes Ziel (von oben nach unten)
+    for (let i = state.targets.length-1; i = 0; i--){
+      const t = state.targets[i];
+      if (!t.alive) continue;
+      const dx = x - t.x, dy = y - t.y;
+      if (dxdx + dydy = t.rt.r){
+        if (t.type === 'enemy'){
+          t.alive = false;
+          state.hits++;
+          state.levelHits++;
+          const need = TARGET_HITS_BY_LEVEL[state.level-1];
+          if (state.levelHits = need){
+             Level geschafft - sofort ins nächste
+            nextLevel();
+          }
+        }else if (t.type === 'healthy'){
+          t.alive = false;
+          state.lives--;
+          if (state.lives = 0){
+            endGame(false);
+          }
+        }
+        updateHUD();
+        return;  nur ein Ziel pro Klick
+      }
+    }
+  }
+
+  canvas.addEventListener('pointerdown', (e)= {
+    e.preventDefault();
+    handleClick(e.clientX, e.clientY);
+  }, {passivefalse});
+
+   --- Buttons  Modal ---
+  btnPause.addEventListener('click', ()={
+    if (!state.running) return;
+    state.paused = !state.paused;
+    if (state.paused){
+      modalTitle.textContent = Spiel pausiert;
+      modalMsg.textContent = Tippe auf „Weiter“, um das Spiel fortzusetzen.;
+      codeWrap.style.display = 'none';
+      if (!modal.open) modal.showModal();
+    }else{
+      if (modal.open) modal.close();
+      state.lastTs = performance.now();
+      state.rafId = requestAnimationFrame(loop);
+    }
+  });
+
+  btnRestart.addEventListener('click', startGame);
+  btnClose.addEventListener('click', ()={
+    if (state.running){
+      state.paused = false;
+      if (modal.open) modal.close();
+      state.lastTs = performance.now();
+      state.rafId = requestAnimationFrame(loop);
+    }else{
+       Nach Spielende Schließen bringt dich ins Pausenfenster nicht zurück, nur schließen.
+      if (modal.open) modal.close();
+    }
+  });
+  btnAgain.addEventListener('click', ()={
+    if (modal.open) modal.close();
+    startGame();
+  });
+
+   --- Start ---
+  function startGame(){
+    state = makeInitialState();
+    updateHUD();
+     Level 1 ohne Boss
+    state.boss = null;
+    if (modal.open) modal.close();
+    cancelAnimationFrame(state.rafId);
+    state.lastTs = performance.now();
+    state.rafId = requestAnimationFrame(loop);
+  }
+
+   Beim ersten Laden Hinweis-Pause & Start automatisch
+  startGame();
+   Sofort pausieren, um Instruktionen anzuzeigen
+  setTimeout(()={
+    state.paused = true;
+    modalTitle.textContent = Bereit;
+    modalMsg.textContent = Triff rote Erreger, meide grüne Zellen. Schaffe das Levelziel im Zeitlimit. Level 5 hat einen Boss.;
+    codeWrap.style.display = 'none';
+    if (!modal.open) modal.showModal();
+  }, 200);
+
+})();
+script
+body
+html
