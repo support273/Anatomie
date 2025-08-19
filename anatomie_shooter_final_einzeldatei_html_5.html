@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Anatomie‑Shooter</title>
+  <style>
+    :root{--bg:#0b0f14;--hud:#121821;--hudText:#e8f0ff;--accent:#38bdf8;--good:#34d399;--bad:#ef4444;--power:#f59e0b}
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--hudText);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{display:flex;flex-direction:column;min-height:100dvh}
+    #hud{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;background:linear-gradient(180deg,var(--hud),#0d141e 85%);box-shadow:0 4px 12px rgba(0,0,0,.35)}
+    #stats{display:flex;flex-wrap:wrap;gap:.5rem;font-weight:700}
+    #stats .pill{padding:.3rem .55rem;border-radius:999px;background:#0e1725;border:1px solid #1f2a3a}
+    #buttons{margin-left:auto;display:flex;gap:.4rem}
+    button{border:1px solid #1f2a3a;background:#0e1725;color:var(--hudText);padding:.45rem .6rem;border-radius:.6rem;font-weight:700;cursor:pointer}
+    #game{width:100%;height:calc(100dvh - 56px);display:block;background:radial-gradient(120% 120% at 50% 0%, #0b1220, #070b12 65%);touch-action:none}
+    #overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(5,9,14,.92);opacity:0;pointer-events:none;transition:opacity .25s}
+    #overlay.show{opacity:1;pointer-events:auto}
+    .panel{max-width:900px;width:min(92vw,900px);background:#0e1622;border:1px solid #233044;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:1.1rem}
+    .panel h1{margin:.2rem 0 .2rem}
+    .panel h2{margin:.6rem 0 .2rem;font-size:1.1rem;color:#b9d2ff}
+    .panel p,.panel li{color:#d8e7ff;line-height:1.45}
+    .hidden{display:none}
+    .ach{display:flex;gap:.5rem;flex-wrap:wrap;margin:.4rem 0}
+    .ach .a{border:1px dashed #35507a;padding:.25rem .55rem;border-radius:999px}
+    .btnLink{display:inline-block;background:var(--accent);color:#061018 !important;text-decoration:none;font-weight:800;padding:.55rem .9rem;border-radius:.6rem;border:1px solid #66d3ff;box-shadow:0 6px 18px rgba(56,189,248,.2)}
+    .btnLink:hover{filter:brightness(1.05)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="hud">
+      <div id="stats">
+        <div class="pill">Level: <span id="uiLevel">1</span></div>
+        <div class="pill">Punkte: <span id="uiScore">0</span></div>
+        <div class="pill">Combo: <span id="uiCombo">x1</span></div>
+        <div class="pill">⭐: <span id="uiStars">0</span></div>
+        <div class="pill">❤️: <span id="uiLives">2</span></div>
+        <div class="pill">Best: <span id="uiHigh">0</span></div>
+        <div class="pill">Zeit: <span id="uiTime">00:00</span></div>
+      </div>
+      <div id="buttons">
+        <button id="btnSound" title="Ton an/aus">🔊 Ton</button>
+        <button id="btnPause" title="Pause/Weiter">⏸️ Pause</button>
+        <button id="btnRestart" title="Neustart">↻ Neustart</button>
+      </div>
+    </div>
+    <canvas id="game"></canvas>
+  </div>
+
+  <div id="overlay" class="show">
+    <div class="panel" id="panelStart">
+      <h1>🎯 Anatomie‑Shooter</h1>
+      <h2>So geht’s</h2>
+      <ul>
+        <li>Tippe/Klicke <span style="color:#ef4444">rote Erreger</span> → Punkte. <span style="color:#34d399">Grüne Zellen</span> nicht treffen!</li>
+        <li><b>Combo:</b> schnelle Treffer erhöhen den Multiplikator. Jede 5er‑Serie gibt <b>⭐</b>.</li>
+        <li><b>⭐ Sterne:</b> bleiben über Level erhalten und geben +5 % Punkte pro Stern.</li>
+        <li><b>Power‑Ups:</b> ⚡ +7 s Zeit • ❤️ +1 Leben (bleibt erhalten) • 🛡️ Schild (verzeiht 1 Fehler/5 s) • ⏱️ Zeitlupe (3 s alles sehr langsam).</li>
+      </ul>
+      <button id="btnStart">▶️ Klicke hier, um zu starten</button>
+      <p style="opacity:.8;margin-top:.4rem">Tipp: Enter/Leertaste startet auch.</p>
+    </div>
+
+    <div class="panel hidden" id="panelBetween">
+      <h1 id="betweenTitle">Level abgeschlossen</h1>
+      <p id="betweenFact"></p>
+      <div class="ach" id="betweenAch"></div>
+      <button id="btnNext">Weiter</button>
+    </div>
+
+    <div class="panel hidden" id="panelLose">
+      <h1>💥 Game Over</h1>
+      <p id="loseMsg">Leider hast du verloren.</p>
+      <button id="btnRetry">↻ Neustart</button>
+    </div>
+
+    <div class="panel hidden" id="panelPause">
+      <h1>⏸️ Pausiert</h1>
+      <p>Weiter mit „▶️“.</p>
+      <button id="btnResume">▶️ Weiter</button>
+    </div>
+
+    <div class="panel hidden" id="panelWin">
+      <h1>🏆 Alle Level geschafft!</h1>
+      <p>Boss besiegt. Highscore: <b id="winHigh">0</b></p>
+      <p><b>Geschenk:</b> 70 % Rabatt‑Code auf den Anatomie Premium‑Pass <code>DH7FT</code> – aktiv noch <b><span id="promoTimer">900</span></b> Sekunden.</p>
+      <p><a class="btnLink" href="https://www.anatomylife.shop/products/anatomie-premium-pass" target="_blank" rel="noopener">Hier direkt zum Premium‑Pass</a></p>
+      <button id="btnWinRestart">↻ Nochmal</button>
+    </div>
+  </div>
+
+<script>
+;(()=>{
+  'use strict';
+  // ===== DOM =====
+  const $ = s => document.querySelector(s);
+  const canvas = $('#game');
+  const ctx = canvas.getContext('2d');
+  const uiLevel=$('#uiLevel'), uiScore=$('#uiScore'), uiCombo=$('#uiCombo'), uiStars=$('#uiStars'), uiLives=$('#uiLives'), uiHigh=$('#uiHigh'), uiTime=$('#uiTime');
+  const overlay=$('#overlay');
+  const pStart=$('#panelStart'), pBetween=$('#panelBetween'), pLose=$('#panelLose'), pPause=$('#panelPause'), pWin=$('#panelWin');
+  const btnStart=$('#btnStart'), btnNext=$('#btnNext'), btnRetry=$('#btnRetry'), btnResume=$('#btnResume'), btnWinRestart=$('#btnWinRestart');
+  const btnSound=$('#btnSound'), btnPause=$('#btnPause'), btnRestart=$('#btnRestart');
+
+  // ===== Canvas size =====
+  let dpr = 1;
+  function resize(){
+    dpr = Math.max(1, Math.floor(window.devicePixelRatio||1));
+    const hudH = document.getElementById('hud').getBoundingClientRect().height;
+    const w = Math.floor(window.innerWidth);
+    const h = Math.floor(window.innerHeight - hudH);
+    canvas.style.width=w+'px'; canvas.style.height=h+'px';
+    canvas.width = w*dpr; canvas.height = h*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
+
+  // ===== Audio (no external files) =====
+  const AudioSys={ctx:null,gain:null,enabled:true,timer:null,
+    ensure(){const AC=window.AudioContext||window.webkitAudioContext; if(!this.ctx&&AC){this.ctx=new AC(); this.gain=this.ctx.createGain(); this.gain.gain.value=.22; this.gain.connect(this.ctx.destination);} },
+    setEnabled(v){this.enabled=!!v; if(this.gain) this.gain.gain.value = this.enabled ? 0.22 : 0;},
+    resume(){ if(this.ctx && this.ctx.state==='suspended'){ this.ctx.resume(); } },
+    note(f=440,d=.08,t='sine',v=.18){ if(!this.enabled) return; this.ensure(); if(!this.ctx) return; const ct=this.ctx.currentTime; const o=this.ctx.createOscillator(), g=this.ctx.createGain(); o.type=t; o.frequency.setValueAtTime(f,ct); g.gain.setValueAtTime(0,ct); g.gain.linearRampToValueAtTime(v, ct+.01); g.gain.exponentialRampToValueAtTime(.0001, ct+d); o.connect(g).connect(this.gain); o.start(ct); o.stop(ct+d+.02); },
+    plop(){this.note(600,.07,'sine',.24); setTimeout(()=>this.note(420,.06,'triangle',.2),40)},
+    buzz(){this.note(220,.12,'sawtooth',.24); setTimeout(()=>this.note(160,.14,'sawtooth',.24),100)},
+    click(){this.note(880,.03,'square',.16)},
+    startMusic(){ if(!this.enabled) return; this.ensure(); if(!this.ctx||this.timer) return; let step=0; this.timer=setInterval(()=>{ if(!this.enabled) return; const base=220; const seq=[0,3,7,10,7,3,0,5]; const f=base*Math.pow(2, seq[step%seq.length]/12); this.note(f,.12,'triangle',.09); if(step%4===0) this.note(base/2,.2,'sine',.05); step++; },500); },
+    stopMusic(){ if(this.timer){ clearInterval(this.timer); this.timer=null; } }
+  };
+
+  // ===== Facts & levels =====
+  const FACTS=[
+    'Das Gehirn verbraucht ~20 % deiner Energie.',
+    'Die Lungenfläche entspricht etwa einem Tennisplatz.',
+    'Rote Blutkörperchen leben ca. 120 Tage.',
+    'Die Haut ist das größte Organ des Körpers.',
+    'Das Herz schlägt über 100.000‑mal pro Tag.'
+  ];
+  const LEVELS=[
+    {time:28,target:10,maxEnemies:4,speed:0.26},
+    {time:30,target:14,maxEnemies:5,speed:0.34},
+    {time:33,target:18,maxEnemies:6,speed:0.42},
+    {time:36,target:22,maxEnemies:7,speed:0.50},
+    {time:55,target:0,maxEnemies:8,speed:0.85,boss:true} // schwerer Boss-Level
+  ];
+
+  // ===== Utilities =====
+  const R= (a,b)=> Math.random()*(b-a)+a;
+  const now=()=>performance.now();
+
+  // ===== Entities =====
+  class Entity{constructor(x,y,r){this.x=x;this.y=y;this.r=r;this.vx=R(-1,1);this.vy=R(-1,1);this.dead=false;} move(dt,w,h){this.x+=this.vx*dt; this.y+=this.vy*dt; if(this.x<this.r){this.x=this.r; this.vx=Math.abs(this.vx);} if(this.x>w-this.r){this.x=w-this.r; this.vx=-Math.abs(this.vx);} if(this.y<this.r){this.y=this.r; this.vy=Math.abs(this.vy);} if(this.y>h-this.r){this.y=h-this.r; this.vy=-Math.abs(this.vy);} } contains(px,py){return ((px-this.x)**2 + (py-this.y)**2) <= this.r*this.r;} }
+  class Healthy extends Entity{constructor(x,y,r){super(x,y,r);this.type='healthy';} draw(ctx){ctx.save(); const g=ctx.createRadialGradient(this.x-this.r*.3,this.y-this.r*.3,this.r*.2,this.x,this.y,this.r); g.addColorStop(0,'#5cf2b9'); g.addColorStop(1,'#1b6a52'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=.7; ctx.fillStyle='#b6ffe0'; ctx.beginPath(); ctx.arc(this.x-this.r*.2,this.y-this.r*.1,this.r*.35,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(this.x,this.y,this.r-1,0,Math.PI*2); ctx.stroke(); ctx.restore();}}
+  class Pathogen extends Entity{constructor(x,y,r){super(x,y,r);this.type='pathogen'; this.spin=R(-1,1); this.angle=R(0,Math.PI*2);} draw(ctx){ctx.save(); ctx.translate(this.x,this.y); this.angle+=this.spin*.01; ctx.rotate(this.angle); const spikes=10,Rr=this.r,rr=Math.max(6,this.r*.5); ctx.beginPath(); for(let i=0;i<spikes*2;i++){const rad=(i%2==0)?Rr:rr; const a=(i/(spikes*2))*Math.PI*2; ctx.lineTo(Math.cos(a)*rad,Math.sin(a)*rad);} ctx.closePath(); const g=ctx.createLinearGradient(-Rr,-Rr,Rr,Rr); g.addColorStop(0,'#ff9a9a'); g.addColorStop(1,'#b81414'); ctx.fillStyle=g; ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=2; ctx.stroke(); ctx.restore();}}
+  class Boss extends Pathogen{constructor(x,y,r,hp){super(x,y,r);this.type='boss';this.hp=hp;this.baseR=r; this.maxHp=hp;} draw(ctx){ctx.save(); ctx.translate(this.x,this.y); this.angle+=0.006; ctx.rotate(this.angle); const spikes=16,Rr=this.r,rr=Math.max(10,this.r*.55); ctx.beginPath(); for(let i=0;i<spikes*2;i++){const rad=(i%2==0)?Rr:rr; const a=(i/(spikes*2))*Math.PI*2; ctx.lineTo(Math.cos(a)*rad,Math.sin(a)*rad);} ctx.closePath(); const g=ctx.createRadialGradient(0,0,rr*.6,0,0,Rr); g.addColorStop(0,'#ffbdbd'); g.addColorStop(1,'#8b1111'); ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.stroke(); // HP ring
+    ctx.beginPath(); ctx.lineWidth=6; ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.arc(0,0,Rr+8,-Math.PI*.5,-Math.PI*.5 + (Math.PI*2)*(this.hp/this.maxHp)); ctx.stroke(); ctx.restore();}}
+  class PowerUp extends Entity{constructor(x,y,r,kind){super(x,y,r);this.type='power';this.kind=kind;} draw(ctx){ctx.save(); ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fillStyle='rgba(255,196,0,.12)'; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle='rgba(255,196,0,.4)'; ctx.stroke(); ctx.font=`${Math.floor(this.r*1.4)}px system-ui,Segoe UI`; ctx.textAlign='center'; ctx.textBaseline='middle'; const s=this.kind==='time'?'⚡':(this.kind==='life'?'❤️':(this.kind==='shield'?'🛡️':'⏱️')); ctx.fillStyle='#ffd166'; ctx.fillText(s,this.x,this.y+1); ctx.restore();}}
+  class Particle{constructor(x,y,vx,vy,life,col){this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.life=life;this.col=col;} update(dt){this.x+=this.vx*dt; this.y+=this.vy*dt; this.life-=dt*0.001;} draw(ctx){ctx.globalAlpha=Math.max(0,this.life); ctx.fillStyle=this.col; ctx.fillRect(this.x,this.y,2,2); ctx.globalAlpha=1;}}
+
+  // ===== State =====
+  const state={
+    started:false,paused:false,level:1,score:0,high:Number(localStorage.getItem('anatomie_shooter_high')||0),
+    timeLeft:0,targets:0,kills:0,maxEnemies:4,speed:1,
+    entities:[],particles:[],
+    lastTime:0, combo:1,lastHitMs:0, shots:0,hits:0,misses:0,
+    lives:2, shieldUntil:0, slowUntil:0, stars:0,
+    boss:null, audio:true,
+    promoTimerId:null, promoExpiresAt:0,
+  };
+  uiHigh.textContent=state.high;
+
+  function fmtTime(sec){ sec=Math.max(0,Math.ceil(sec)); const m=Math.floor(sec/60).toString().padStart(2,'0'); const s=(sec%60).toString().padStart(2,'0'); return `${m}:${s}`; }
+  function updateHUD(){ uiLevel.textContent=state.level; uiScore.textContent=Math.floor(state.score); uiCombo.textContent='x'+Math.max(1,state.combo); uiStars.textContent=state.stars; uiLives.textContent=state.lives; uiHigh.textContent=state.high; uiTime.textContent=fmtTime(state.timeLeft); }
+
+  function showOverlay(p){ overlay.classList.add('show'); for(const x of [pStart,pBetween,pLose,pPause,pWin]) x.classList.add('hidden'); p.classList.remove('hidden'); }
+  function hideOverlay(){ overlay.classList.remove('show'); }
+
+  function resetAll(){ state.started=false; state.paused=false; state.level=1; state.score=0; state.timeLeft=0; state.kills=0; state.entities.length=0; state.particles.length=0; state.combo=1; state.lastHitMs=0; state.shots=0; state.hits=0; state.misses=0; state.lives=2; state.shieldUntil=0; state.slowUntil=0; state.boss=null; state.stars=0; updateHUD(); }
+
+  // ===== Spawning =====
+  function spawnPathogen(sz){ const r=sz||R(16,26); const x=R(r+10, canvas.width/dpr-r-10); const y=R(r+10, canvas.height/dpr-r-10); const e=new Pathogen(x,y,r); const sp=state.speed*R(0.12,0.28); e.vx=(Math.random()<.5?-1:1)*sp; e.vy=(Math.random()<.5?-1:1)*sp; state.entities.push(e); }
+  function spawnHealthy(){ const r=R(16,24); const x=R(r+10, canvas.width/dpr-r-10); const y=R(r+10, canvas.height/dpr-r-10); const e=new Healthy(x,y,r); const sp=state.speed*R(0.08,0.18); e.vx=(Math.random()<.5?-1:1)*sp; e.vy=(Math.random()<.5?-1:1)*sp; state.entities.push(e); }
+  function spawnPower(){ const kinds=['time','life','shield','slow']; const kind=kinds[Math.floor(R(0,kinds.length))]; const r=16; const x=R(r+10, canvas.width/dpr-r-10); const y=R(r+10, canvas.height/dpr-r-10); const p=new PowerUp(x,y,r,kind); const sp=R(0.08,0.16); p.vx=(Math.random()<.5?-1:1)*sp; p.vy=(Math.random()<.5?-1:1)*sp; state.entities.push(p); }
+
+  // ===== Effects =====
+  function explode(x,y,col){ for(let i=0;i<22;i++){ const a=R(0,Math.PI*2); const s=R(0.1,0.6)*state.speed*60; state.particles.push(new Particle(x,y,Math.cos(a)*s,Math.sin(a)*s,R(0.6,1.1),col||'#ffdddd')); } }
+
+  // ===== Level control =====
+  function startLevel(n){ const cfg=LEVELS[n-1]; state.level=n; state.timeLeft=cfg.time; state.kills=0; state.targets=cfg.target; state.maxEnemies=cfg.maxEnemies||cfg.max; state.speed=cfg.speed||1; state.entities.length=0; state.particles.length=0; state.combo=1; state.lastHitMs=0; state.shots=0; state.hits=0; state.misses=0; state.boss=null; // lives & stars persist
+    if(cfg.boss){ const r=Math.min(canvas.width/dpr, canvas.height/dpr)*0.12 + 40; const hp=18; const b=new Boss(R(r+20, canvas.width/dpr-r-20), R(r+20, canvas.height/dpr-r-20), r, hp); b.vx=R(-0.32,0.32)*state.speed; b.vy=R(-0.32,0.32)*state.speed; state.entities.push(b); state.boss=b; for(let i=0;i<3;i++) spawnPathogen(); for(let i=0;i<3;i++) spawnHealthy(); }
+    else { const need=Math.max(2,state.maxEnemies); for(let i=0;i<need;i++) spawnPathogen(); for(let i=0;i<Math.ceil(need*.8);i++) spawnHealthy(); }
+    state.started=true; state.paused=false; state.lastTime=now(); updateHUD(); }
+
+  function levelCompleted(){ const acc= state.shots>0? (state.hits/state.shots):1; const box=$('#betweenAch'); box.innerHTML=''; if(state.misses===0){ const el=document.createElement('span'); el.className='a'; el.textContent='🏅 Perfekt (kein Fehlschuss)'; box.appendChild(el);} if(acc>0.9){ const el=document.createElement('span'); el.className='a'; el.textContent='🥇 Scharfschütze (>90% Treffer)'; box.appendChild(el);} const n=state.level; const next=Math.min(LEVELS.length, n+1); $('#betweenTitle').textContent = (n<LEVELS.length)? `Level ${n} abgeschlossen – es geht weiter mit Level ${next}.` : 'Alle Level abgeschlossen!'; $('#betweenFact').textContent = 'Fun Fact: ' + FACTS[(n-1)%FACTS.length]; showOverlay(pBetween); }
+  function nextLevel(){ if(state.level>=LEVELS.length){ win(); return; } startLevel(state.level+1); hideOverlay(); AudioSys.startMusic(); }
+  function win(){ $('#winHigh').textContent = Math.max(state.high,state.score); state.promoExpiresAt = performance.now() + 15*60*1000; if(state.promoTimerId) clearInterval(state.promoTimerId); const el=$('#promoTimer'); state.promoTimerId = setInterval(()=>{ const left = Math.max(0, Math.ceil((state.promoExpiresAt - performance.now())/1000)); el.textContent = left; if(left<=0){ clearInterval(state.promoTimerId); state.promoTimerId=null; } },250); showOverlay(pWin); AudioSys.note(880,.2,'square',.2); }
+  function lose(reason=''){ if(reason==='wrongHealthy') $('#loseMsg').textContent='Leider hast du verloren, da du den falschen Erreger getötet hast.'; else if(reason==='timeout') $('#loseMsg').textContent='Zeit abgelaufen – versuch es nochmal!'; else $('#loseMsg').textContent='Du hast verloren.'; if(state.score>state.high){ state.high=Math.floor(state.score); localStorage.setItem('anatomie_shooter_high', state.high);} showOverlay(pLose); AudioSys.buzz(); }
+
+  // ===== Input =====
+  function canvasPos(evt){ const r=canvas.getBoundingClientRect(); const cx=(evt.clientX??(evt.touches&&evt.touches[0].clientX)); const cy=(evt.clientY??(evt.touches&&evt.touches[0].clientY)); return {x:cx-r.left,y:cy-r.top}; }
+  function handleHit(px,py){ state.shots++; for(let i=state.entities.length-1;i>=0;i--){ const e=state.entities[i]; if(e.dead) continue; if(e.contains(px,py)){
+      if(e.type==='pathogen' || e.type==='boss'){
+        state.hits++;
+        const t=performance.now(); if(t - state.lastHitMs < 1000){ state.combo=Math.min(20, state.combo+1); if(state.combo%5===0 && e.type!=='boss') state.stars++; } else state.combo=1; state.lastHitMs=t;
+        const bossHit = (e.type==='boss'); const comboUsed = bossHit ? Math.min(3, state.combo) : state.combo; const base = bossHit ? 60 : 100; const points = base * comboUsed * (1 + 0.05 * state.stars); state.score += points; AudioSys.plop();
+        if(e.type==='boss'){
+          e.hp-=1; e.r=Math.max(30, e.baseR*(0.5+0.5*e.hp/e.maxHp)); explode(e.x,e.y,'#ffd0d0');
+          if([14,10,7,4].includes(e.hp)){
+            for(let k=0;k<5;k++){ const c=new Pathogen(e.x+R(-28,28), e.y+R(-28,28), R(14,22)); c.vx=R(-0.36,0.36)*state.speed; c.vy=R(-0.36,0.36)*state.speed; state.entities.push(c);} }
+          if(e.hp<=0){ e.dead=true; explode(e.x,e.y,'#ffb3b3'); if(state.score>state.high){ state.high=Math.floor(state.score); localStorage.setItem('anatomie_shooter_high', state.high);} win(); return; }
+        } else { e.dead=true; explode(e.x,e.y,'#ffc6c6'); }
+        maintainSpawns(); updateHUD();
+        if(!LEVELS[state.level-1].boss){ if(++state.kills>=state.targets){ if(state.score>state.high){ state.high=Math.floor(state.score); localStorage.setItem('anatomie_shooter_high', state.high);} levelCompleted(); } }
+        return; }
+      else if(e.type==='healthy'){
+        if(performance.now() < state.shieldUntil){ state.shieldUntil=0; AudioSys.buzz(); }
+        else if(state.lives>0){ state.lives--; AudioSys.buzz(); if(state.lives<=0){ lose('wrongHealthy'); return; } }
+        else { lose('wrongHealthy'); return; }
+        state.combo=1; updateHUD(); return;
+      }
+      else if(e.type==='power'){
+        if(e.kind==='time'){ state.timeLeft+=7; }
+        else if(e.kind==='life'){ state.lives=Math.min(9,state.lives+1); }
+        else if(e.kind==='shield'){ state.shieldUntil=performance.now()+5000; }
+        else if(e.kind==='slow'){ state.slowUntil=performance.now()+3000; }
+        e.dead=true; AudioSys.click(); updateHUD(); return;
+      }
+    } }
+    if(performance.now()>state.shieldUntil){ state.combo=1; state.misses++; }
+    updateHUD();
+  }
+  canvas.addEventListener('pointerdown', (e)=>{ const p=canvasPos(e); handleHit(p.x,p.y); }, {passive:false});
+  canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+  // ===== Maintain spawns =====
+  function maintainSpawns(){ const cfg=LEVELS[state.level-1]; if(cfg.boss) return; // im Boss-Level nichts nachspawnen
+    const alivePath=state.entities.filter(e=>e.type==='pathogen'&&!e.dead).length;
+    const aliveHealthy=state.entities.filter(e=>e.type==='healthy'&&!e.dead).length;
+    const needPath=Math.max(1, state.maxEnemies);
+    if(alivePath<needPath){ for(let i=0;i<needPath-alivePath;i++) spawnPathogen(); }
+    const needHealth=Math.max(1, Math.floor(needPath*.7));
+    if(aliveHealthy<needHealth){ for(let i=0;i<needHealth-aliveHealthy;i++) spawnHealthy(); }
+  }
+
+  // ===== Loop =====
+  function step(){ requestAnimationFrame(step); if(!state.started || overlay.classList.contains('show') || state.paused) return; const t=now(); const dtRaw=Math.min(32, t-state.lastTime); state.lastTime=t; const slowFactor = (performance.now()<state.slowUntil)? 0.25 : 1.0; const dt = dtRaw * slowFactor; state.timeLeft-=dtRaw/1000; if(state.timeLeft<=0){ if(state.lives>0){ state.lives--; state.timeLeft=8; } else { lose('timeout'); return; } }
+    if(Math.random()<0.0025) spawnPower();
+    const w=canvas.width/dpr, h=canvas.height/dpr; for(const e of state.entities){ if(e.dead) continue; e.move(dt, w, h);} for(const p of state.particles){ p.update(dt);} state.particles=state.particles.filter(p=>p.life>0);
+    maintainSpawns(); draw(); updateHUD(); }
+
+  function draw(){ const w=canvas.width/dpr, h=canvas.height/dpr; ctx.clearRect(0,0,w,h);
+    // Grid
+    ctx.save(); ctx.globalAlpha=.06; for(let y=0;y<h;y+=40){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.strokeStyle='#7fb3ff'; ctx.stroke(); } for(let x=0;x<w;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.strokeStyle='#7fb3ff'; ctx.stroke(); } ctx.restore();
+    // Watermark
+    ctx.save(); ctx.globalAlpha=.10; ctx.translate(w*.5,h*.55); ctx.rotate(-Math.PI/8); const fs=Math.max(48, Math.min(160, Math.floor(w*.08))); ctx.font=`700 ${fs}px system-ui,Segoe UI`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff'; ctx.fillText('Anatomie Offiziell',0,0); ctx.restore();
+    // shield/slow tint
+    if(performance.now()<state.shieldUntil){ ctx.save(); ctx.globalAlpha=.18; ctx.fillStyle='#5eead4'; ctx.fillRect(0,0,w,h); ctx.restore(); }
+    if(performance.now()<state.slowUntil){ ctx.save(); ctx.globalAlpha=.14; ctx.fillStyle='#94a3b8'; ctx.fillRect(0,0,w,h); ctx.restore(); }
+    // entities & particles
+    for(const e of state.entities){ if(!e.dead) e.draw(ctx); }
+    for(const p of state.particles){ p.draw(ctx); }
+  }
+
+  // ===== Start & Buttons =====
+  function startGame(){ try{ AudioSys.ensure(); AudioSys.setEnabled(state.audio); AudioSys.resume(); AudioSys.startMusic(); }catch(_){} hideOverlay(); startLevel(1); }
+  btnStart.addEventListener('click', startGame);
+  overlay.addEventListener('click', (e)=>{ if(!pStart.classList.contains('hidden')) startGame(); }, {passive:true});
+  window.addEventListener('keydown', (e)=>{ if(!pStart.classList.contains('hidden') && (e.key==='Enter' || e.key===' ')) { e.preventDefault(); startGame(); }}, {passive:false});
+
+  btnNext.addEventListener('click', ()=> nextLevel());
+  btnRetry.addEventListener('click', ()=>{ hideOverlay(); resetAll(); startLevel(1); AudioSys.startMusic(); });
+  btnWinRestart.addEventListener('click', ()=>{ hideOverlay(); resetAll(); startLevel(1); AudioSys.startMusic(); });
+  btnResume.addEventListener('click', ()=>{ state.paused=false; hideOverlay(); AudioSys.startMusic(); });
+  btnPause.addEventListener('click', ()=>{ if(!state.started) return; state.paused=true; showOverlay(pPause); });
+  btnRestart.addEventListener('click', ()=>{ resetAll(); showOverlay(pStart); });
+  btnSound.addEventListener('click', ()=>{ state.audio=!state.audio; AudioSys.setEnabled(state.audio); btnSound.textContent = state.audio? '🔊 Ton':'🔇 Ton aus'; });
+
+  // ===== Kick loop =====
+  state.lastTime=now(); requestAnimationFrame(step);
+  setInterval(()=>{ if(state.started && !state.paused && !overlay.classList.contains('show')) maintainSpawns(); }, 900);
+})();
+</script>
+</body>
+</html>
