@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Glücksrad – Anatomie-Quiz</title>
+  <style>
+    :root {
+      --bg: #0b0f16;
+      --card: #111827;
+      --accent: #22c55e;
+      --accent2: #3b82f6;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: radial-gradient(1200px 800px at 70% -20%, #1f2937 0%, var(--bg) 55%);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      min-height: 100svh;
+      display: grid; place-items: center;
+    }
+    .wrap { width: 100%; max-width: 980px; padding: 24px; }
+    .card {
+      background: linear-gradient(180deg, #0f172a 0%, #0b1020 100%);
+      border: 1px solid #1f2937;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+      padding: 20px;
+    }
+    header { display:flex; gap:16px; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+    .title { font-weight: 700; letter-spacing: .2px; }
+    .subtitle { color: var(--muted); font-size: 0.95rem; }
+
+    .grid {
+      display: grid; grid-template-columns: 1fr; gap: 18px;
+    }
+    @media (min-width: 900px) {
+      .grid { grid-template-columns: 1.1fr .9fr; }
+    }
+
+    /* Wheel */
+    .wheel-wrap { position: relative; aspect-ratio: 1 / 1; }
+    .wheel {
+      width: 100%; height: 100%; border-radius: 50%;
+      border: 10px solid #111827; background: conic-gradient(#0ea5e9 0 60deg, #22c55e 0 120deg, #eab308 0 180deg, #a855f7 0 240deg, #ef4444 0 300deg, #14b8a6 0 360deg);
+      position: relative; transition: transform 4.2s cubic-bezier(.17,.67,.23,1.02);
+      box-shadow: inset 0 0 0 8px #0b1220, 0 12px 30px rgba(0,0,0,.5);
+    }
+    .labels {
+      position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+      font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,.6);
+    }
+    .labels span{ position:absolute; transform-origin: 50% calc(100% + 170px); top: 50%; left: 50%; }
+    .labels .l1{ transform: rotate(30deg); }
+    .labels .l2{ transform: rotate(90deg); }
+    .labels .l3{ transform: rotate(150deg); }
+    .labels .l4{ transform: rotate(210deg); }
+    .labels .l5{ transform: rotate(270deg); }
+    .labels .l6{ transform: rotate(330deg); }
+
+    .pointer { position:absolute; top:-8px; left:50%; transform: translateX(-50%);
+      width: 0; height: 0; border-left: 16px solid transparent; border-right: 16px solid transparent; border-bottom: 22px solid #f8fafc;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); z-index: 2; }
+
+    .hub { position:absolute; inset: 45% 45%; background:#0ea5e9; border-radius:50%; border:6px solid #0b1220; box-shadow: inset 0 0 18px rgba(0,0,0,.5), 0 6px 14px rgba(0,0,0,.4); z-index:1; }
+
+    .controls { display:flex; gap: 10px; align-items:center; justify-content:center; flex-wrap: wrap; margin-top: 10px; }
+    button { cursor:pointer; border:0; border-radius: 12px; padding: 12px 15px; font-weight: 700; }
+    .btn-primary { background: linear-gradient(180deg, #22c55e, #16a34a); color:#071206; }
+    .btn-secondary { background: #111827; color:#d1d5db; border:1px solid #1f2937; }
+    .btn-danger { background: linear-gradient(180deg, #ef4444, #b91c1c); color:#fff; }
+    .hint { color: var(--muted); font-size: .92rem; text-align:center; }
+
+    .stat { display:flex; gap:10px; align-items:center; }
+    .badge { background:#0b1220; border:1px solid #1f2937; padding:6px 10px; border-radius:10px; font-size:.9rem; }
+
+    /* Modal */
+    .modal { position: fixed; inset: 0; display:none; place-items: center; background: rgba(3,7,18,.6); backdrop-filter: blur(6px); z-index: 50; }
+    .modal.open { display:grid; }
+    .door { width: min(680px, 92vw); background: #0c1324; border:1px solid #1f2937; border-radius: 18px; overflow:hidden; box-shadow: 0 20px 60px rgba(0,0,0,.65); }
+    .doorTop { height: 0; overflow: hidden; background: #0b1220; transition: height .6s ease; display:grid; place-items:center; }
+    .door.open .doorTop { height: 90px; }
+    .doorBody { padding: 18px; }
+    .q { font-size: 1.05rem; line-height: 1.4; margin-bottom: 10px; }
+    .answers { display:grid; gap:10px; margin: 14px 0; }
+    .answers button { text-align:left; width: 100%; padding: 12px; border:1px solid #223047; background:#0f1a33; color:#e5e7eb; }
+    .answers button:hover { background:#152240; }
+    .answers button.correct { outline: 2px solid var(--accent); background: #0e1f19; }
+    .answers button.wrong { outline: 2px solid var(--danger); background: #261215; }
+
+    .codeBox { display:none; border:1px dashed #2563eb; background: #0b1531; padding: 12px; border-radius: 12px; margin-top: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-weight: 800; letter-spacing: 2px; text-align:center; }
+    .codeBox.show { display:block; }
+
+    .footer { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top: 12px; }
+
+    .toast { position: fixed; left:50%; bottom: 24px; transform: translateX(-50%);
+      background:#0b1220; border:1px solid #1f2937; color:#e5e7eb; padding: 10px 14px; border-radius: 12px; display:none; }
+    .toast.show { display:block; animation: fade 3.2s ease both; }
+    @keyframes fade { 0%{opacity:0; transform: translate(-50%, 10px);} 10%{opacity:1; transform: translate(-50%, 0);} 90%{opacity:1;} 100%{opacity:0;} }
+
+    a.link { color:#93c5fd; text-decoration: none; border-bottom: 1px dashed #60a5fa; }
+    a.link:hover { color:#bfdbfe; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <header>
+        <div>
+          <div class="title">Glücksrad – Anatomie & Medizin</div>
+          <div class="subtitle">Drehe das Rad. Beantworte die Frage richtig. Hol dir den <strong>5‑stelligen Code</strong>. Maximal <strong>3</strong> Fehlversuche / Nachdrehen.</div>
+        </div>
+        <div class="stat">
+          <span class="badge" id="triesInfo">Versuche übrig: 3</span>
+          <span class="badge" id="statusInfo">Status: bereit</span>
+        </div>
+      </header>
+
+      <div class="grid">
+        <section>
+          <div class="wheel-wrap">
+            <div class="pointer" aria-hidden="true"></div>
+            <div class="wheel" id="wheel" aria-label="Glücksrad"></div>
+            <div class="labels" aria-hidden="true">
+              <span class="l1">Herz</span>
+              <span class="l2">Gehirn</span>
+              <span class="l3">Muskeln</span>
+              <span class="l4">Blut</span>
+              <span class="l5">Atmung</span>
+              <span class="l6">Knochen</span>
+            </div>
+            <div class="hub"></div>
+          </div>
+          <div class="controls">
+            <button class="btn-primary" id="spinBtn">▶️ Drehen</button>
+            <button class="btn-secondary" id="rulesBtn">Regeln</button>
+            <button class="btn-danger" id="resetBtn" title="Nur für Tests / Demo">Zurücksetzen</button>
+          </div>
+          <p class="hint">Hinweis: Wir speichern einen lokalen Schutz (Cookies/LocalStorage), damit du nicht mehrfach spielen kannst. Ein harter IP‑Block erfordert einen Server.</p>
+        </section>
+
+        <section>
+          <div class="card" style="min-height:220px;">
+            <h3 style="margin-top:0;">Spiel-Infos</h3>
+            <ul>
+              <li>Jede Drehung landet auf einem von 6 Feldern. Dahinter steckt <em>eine</em> Frage.</li>
+              <li>Zu jeder Frage gibt es <strong>5</strong> Antwortmöglichkeiten, <strong>genau eine</strong> ist richtig.</li>
+              <li>Bei richtiger Antwort: Es erscheint <strong>dein persönlicher 5‑stelliger Zahlencode</strong> und das Spiel endet.</li>
+              <li>Bei falscher Antwort: Das Türchen schließt sich. Du darfst maximal <strong>3×</strong> erneut drehen.</li>
+              <li>Wiederholtes Spielen wird per Cookie/LocalStorage verhindert.</li>
+            </ul>
+            <p class="hint">Fragen sind bewusst leicht – Fokus liegt auf dem Glücksrad.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal / "Türchen" -->
+  <div class="modal" id="modal">
+    <div class="door" id="door">
+      <div class="doorTop" id="doorTop"><div style="padding:10px 14px; font-weight:700; color:#93c5fd;">Frage freigeschaltet</div></div>
+      <div class="doorBody">
+        <div class="q" id="questionText">Frage…</div>
+        <div class="answers" id="answers"></div>
+        <div id="codeBox" class="codeBox" aria-live="polite"></div>
+        <div class="footer">
+          <div class="hint" id="feedback"></div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-secondary" id="closeBtn">Schließen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // --------- Utility: Cookie + simple fingerprint ---------
+    const Cookie = {
+      set: (name, value, days=365) => {
+        const d = new Date(); d.setTime(d.getTime() + (days*24*60*60*1000));
+        document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+      },
+      get: (name) => {
+        return document.cookie.split('; ').reduce((acc, cur) => {
+          const [k, v] = cur.split('=');
+          return k === name ? decodeURIComponent(v) : acc;
+        }, null);
+      }
+    };
+    const fingerprint = () => {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'tz';
+      const raw = navigator.userAgent + '|' + navigator.language + '|' + tz + '|' + screen.width + 'x' + screen.height;
+      // simple hash
+      let h = 0; for (let i=0;i<raw.length;i++){ h = ((h<<5)-h) + raw.charCodeAt(i); h |= 0; }
+      return 'fp_' + Math.abs(h);
+    };
+
+    // --------- Game State ---------
+    const MAX_RETRIES = 3; // Nachdrehen bei falscher Antwort
+    const stateKey = 'anatomie_wheel_state_v1';
+
+    const defaultState = () => ({
+      played: false, // hat bereits gedreht
+      won: false,    // richtige Antwort gegeben
+      code: null,    // 5-stelliger Code
+      retriesUsed: 0,
+      fingerprint: fingerprint(),
+    });
+
+    const readState = () => {
+      try {
+        const raw = localStorage.getItem(stateKey);
+        if (!raw) return defaultState();
+        const obj = JSON.parse(raw);
+        return { ...defaultState(), ...obj };
+      } catch { return defaultState(); }
+    };
+    const writeState = (s) => { localStorage.setItem(stateKey, JSON.stringify(s)); };
+
+    let game = readState();
+    if (!Cookie.get('anatomie_wheel_visited')) Cookie.set('anatomie_wheel_visited', game.fingerprint);
+
+    const spinBtn = document.getElementById('spinBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const rulesBtn = document.getElementById('rulesBtn');
+    const wheel = document.getElementById('wheel');
+    const triesInfo = document.getElementById('triesInfo');
+    const statusInfo = document.getElementById('statusInfo');
+    const modal = document.getElementById('modal');
+    const door = document.getElementById('door');
+    const answersEl = document.getElementById('answers');
+    const questionText = document.getElementById('questionText');
+    const feedback = document.getElementById('feedback');
+    const codeBox = document.getElementById('codeBox');
+    const closeBtn = document.getElementById('closeBtn');
+    const toast = document.getElementById('toast');
+
+    function showToast(msg){ toast.textContent = msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 3000); }
+
+    function updateUI(){
+      const left = Math.max(0, MAX_RETRIES - game.retriesUsed);
+      triesInfo.textContent = `Versuche übrig: ${left}`;
+      if (game.won) {
+        statusInfo.textContent = 'Status: abgeschlossen';
+        spinBtn.disabled = true; spinBtn.textContent = '✅ Beendet';
+      } else if (left === 0) {
+        statusInfo.textContent = 'Status: keine Versuche mehr';
+        spinBtn.disabled = true; spinBtn.textContent = '⛔️ Keine Versuche';
+      } else {
+        statusInfo.textContent = 'Status: bereit';
+        spinBtn.disabled = false; spinBtn.textContent = '▶️ Drehen';
+      }
+    }
+
+    // --------- Fragenkatalog (6 Fragen, je 5 Antworten, 1 richtig) ---------
+    const QUESTIONS = [
+      {
+        label: 'Herz',
+        q: 'Welche Aufgabe hat die linken Herzkammer (linker Ventrikel)?',
+        a: ['Sie pumpt Blut in die Lunge.', 'Sie sammelt sauerstoffarmes Blut aus dem Körper.', 'Sie pumpt sauerstoffreiches Blut in den Körperkreislauf.', 'Sie produziert Blutzellen.', 'Sie steuert die Herzfrequenz.'],
+        correct: 2,
+      },
+      {
+        label: 'Gehirn',
+        q: 'Welcher Hirnlappen ist primär für das Sehen zuständig?',
+        a: ['Frontallappen', 'Parietallappen', 'Temporallappen', 'Okzipitallappen', 'Insula'],
+        correct: 3,
+      },
+      {
+        label: 'Muskeln',
+        q: 'Wie heißt der größte Muskel der Gesäßregion?',
+        a: ['M. gluteus minimus', 'M. gluteus medius', 'M. gluteus maximus', 'M. iliopsoas', 'M. piriformis'],
+        correct: 2,
+      },
+      {
+        label: 'Blut',
+        q: 'Welche Blutbestandteile sind vor allem für die Blutgerinnung zuständig?',
+        a: ['Erythrozyten', 'Leukozyten', 'Thrombozyten', 'Plasmaeiweiße nur', 'Lymphozyten'],
+        correct: 2,
+      },
+      {
+        label: 'Atmung',
+        q: 'Wo findet der Gasaustausch in der Lunge hauptsächlich statt?',
+        a: ['In der Trachea', 'In den Bronchien', 'In den Bronchiolen', 'In den Alveolen', 'Im Pleuraspalt'],
+        correct: 3,
+      },
+      {
+        label: 'Knochen',
+        q: 'Wie heißt der längste Knochen des menschlichen Körpers?',
+        a: ['Humerus', 'Femur', 'Tibia', 'Fibula', 'Beckenbein'],
+        correct: 1,
+      },
+    ];
+
+    // Map: Segmentindex -> Frage (0..5)
+    function getQuestionBySegment(seg){ return QUESTIONS[seg % QUESTIONS.length]; }
+
+    // --------- Spin Logic ---------
+    let spinning = false;
+    let currentRotation = 0; // in deg
+
+    function spin(){
+      if (spinning) return;
+      if (game.won) return showToast('Spiel bereits abgeschlossen.');
+      const left = MAX_RETRIES - game.retriesUsed;
+      if (left <= 0) return showToast('Keine Versuche mehr.');
+
+      spinning = true; statusInfo.textContent = 'Status: dreht…';
+      const extra = 360 * (3 + Math.floor(Math.random()*3)); // 3-5 volle Umdrehungen
+      const targetSeg = Math.floor(Math.random() * 6); // 0..5
+      const segAngle = 60; // 360/6
+      // Pointer steht oben bei 0°. Damit Segmentmitte oben landet, drehen wir auf: (targetSeg * segAngle + segAngle/2)
+      const endAngle = 360 - (targetSeg * segAngle + segAngle/2);
+      const finalDeg = currentRotation + extra + endAngle + (Math.random()*4-2); // kleine Varianz
+      wheel.style.transform = `rotate(${finalDeg}deg)`;
+
+      // nach Animationszeit Ergebnis ermitteln
+      setTimeout(()=>{
+        currentRotation = finalDeg % 360;
+        spinning = false; statusInfo.textContent = 'Status: Frage öffnen…';
+        const q = getQuestionBySegment(targetSeg);
+        openDoorWithQuestion(q);
+        game.played = true; writeState(game);
+      }, 4300);
+    }
+
+    // --------- Modal / Door / Question ---------
+    function openDoorWithQuestion(q){
+      questionText.textContent = q.q;
+      answersEl.innerHTML = '';
+      codeBox.classList.remove('show');
+      codeBox.textContent = '';
+      feedback.textContent = '';
+
+      q.a.forEach((txt, idx)=>{
+        const btn = document.createElement('button');
+        btn.textContent = `${idx+1}. ${txt}`;
+        btn.addEventListener('click', ()=> selectAnswer(btn, idx === q.correct));
+        answersEl.appendChild(btn);
+      });
+
+      modal.classList.add('open');
+      // Tür-Animation minimal
+      requestAnimationFrame(()=> door.classList.add('open'));
+    }
+
+    function selectAnswer(button, isCorrect){
+      // disable all buttons after click
+      Array.from(answersEl.children).forEach(b=> b.disabled = true);
+
+      if (isCorrect){
+        button.classList.add('correct');
+        feedback.textContent = 'Richtig!';
+        // 5-stelligen Code erzeugen (einfach, pseudo‑zufällig, sessionbasiert)
+        if (!game.code){
+          game.code = ('' + Math.floor(10000 + Math.random()*90000));
+        }
+        game.won = true; writeState(game);
+        codeBox.textContent = `Dein 5‑stelliger Code: ${game.code}`;
+        codeBox.classList.add('show');
+        updateUI();
+      } else {
+        button.classList.add('wrong');
+        feedback.textContent = 'Falsch. Tür schließt sich – du darfst nochmal drehen (sofern Versuche übrig sind).';
+        game.retriesUsed = Math.min(MAX_RETRIES, game.retriesUsed + 1);
+        writeState(game);
+        updateUI();
+        // Tür nach kurzer Zeit schließen
+        setTimeout(()=> { closeModal(); }, 1200);
+      }
+    }
+
+    function closeModal(){
+      door.classList.remove('open');
+      setTimeout(()=> modal.classList.remove('open'), 200);
+    }
+
+    // --------- Event Listeners ---------
+    spinBtn.addEventListener('click', spin);
+    closeBtn.addEventListener('click', closeModal);
+    rulesBtn.addEventListener('click', ()=>{
+      alert('Regeln:\n\n• Drehe das Rad.\n• Beantworte die aufklappende Frage.\n• Richtig -> persönlicher 5‑stelliger Code, Spiel endet.\n• Falsch -> Tür schließt, max. 3 Nachdrehen.\n• Schutz vor Mehrfachspielen via Cookie/LocalStorage.');
+    });
+
+    resetBtn.addEventListener('click', ()=>{
+      if (!confirm('Zurücksetzen für diese Seite? (Nur lokal – Demo/Test)')) return;
+      localStorage.removeItem(stateKey);
+      Cookie.set('anatomie_wheel_visited', '', -1);
+      game = readState();
+      updateUI();
+      showToast('Zurückgesetzt.');
+    });
+
+    // --------- Startup: block repeat players ---------
+    function enforceSinglePlay(){
+      // Wenn bereits gewonnen ODER keine Versuche mehr -> blocken
+      if (game.won || game.retriesUsed >= MAX_RETRIES){ updateUI(); return; }
+
+      // Zusätzlicher weicher Schutz: wenn Cookie vorhanden und Fingerprint anders -> block optional nicht
+      // (Ohne Server/IP nur ein weicher Schutz möglich.)
+      updateUI();
+    }
+
+    enforceSinglePlay();
+  </script>
+</body>
+</html>
